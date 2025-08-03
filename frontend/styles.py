@@ -182,7 +182,22 @@ class ModernDarkTheme:
         QTabBar::close-button {{
             image: url(data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHZpZXdCb3g9IjAgMCAxNiAxNiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTEyIDRMNCA5NU00IDRMMTIgMTIiIHN0cm9rZT0iI2NjY2NjYyIgc3Ryb2tlLXdpZHRoPSIxLjUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgo8L3N2Zz4K);
             subcontrol-position: right;
+            subcontrol-origin: padding;
             margin: 4px;
+            padding: 2px;
+            width: 16px;
+            height: 16px;
+            background-color: transparent;
+            border-radius: 2px;
+        }}
+        
+        QTabBar::close-button:hover {{
+            background-color: {ModernDarkTheme.TEXT_ERROR};
+            image: url(data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHZpZXdCb3g9IjAgMCAxNiAxNiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTEyIDRMNCA5NU00IDRMMTIgMTIiIHN0cm9rZT0iI2ZmZmZmZiIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiLz4KPC9zdmc+);
+        }}
+        
+        QTabBar::close-button:pressed {{
+            background-color: {ModernDarkTheme.BACKGROUND_TERTIARY};
         }}
         
         /* Text Edit Styles */

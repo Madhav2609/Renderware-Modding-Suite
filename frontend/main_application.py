@@ -110,6 +110,31 @@ class RenderwareModdingSuite(QMainWindow):
         validate_action.triggered.connect(lambda: self.tools_panel.toolRequested.emit("file_validator", {}))
         tools_menu.addAction(validate_action)
         
+        # Window menu for tab management
+        window_menu = menubar.addMenu('&Window')
+        
+        close_tab_action = QAction('&Close Tab', self)
+        close_tab_action.setShortcut('Ctrl+W')
+        close_tab_action.triggered.connect(self.content_area.close_current_tab)
+        window_menu.addAction(close_tab_action)
+        
+        close_all_action = QAction('Close &All Tabs', self)
+        close_all_action.setShortcut('Ctrl+Shift+W')
+        close_all_action.triggered.connect(self.content_area.close_all_tabs_except_welcome)
+        window_menu.addAction(close_all_action)
+        
+        window_menu.addSeparator()
+        
+        next_tab_action = QAction('&Next Tab', self)
+        next_tab_action.setShortcut('Ctrl+Tab')
+        next_tab_action.triggered.connect(self.switch_to_next_tab)
+        window_menu.addAction(next_tab_action)
+        
+        prev_tab_action = QAction('&Previous Tab', self)
+        prev_tab_action.setShortcut('Ctrl+Shift+Tab')
+        prev_tab_action.triggered.connect(self.switch_to_previous_tab)
+        window_menu.addAction(prev_tab_action)
+        
         # Backend menu
         backend_menu = menubar.addMenu('&Backend')
         
@@ -184,6 +209,24 @@ class RenderwareModdingSuite(QMainWindow):
         
         except Exception as e:
             self.status_bar.show_error(f"Error opening tool: {str(e)}")
+    
+    def switch_to_next_tab(self):
+        """Switch to the next tab"""
+        current_index = self.content_area.tab_widget.currentIndex()
+        tab_count = self.content_area.tab_widget.count()
+        
+        if tab_count > 1:  # Only switch if there are multiple tabs
+            next_index = (current_index + 1) % tab_count
+            self.content_area.tab_widget.setCurrentIndex(next_index)
+    
+    def switch_to_previous_tab(self):
+        """Switch to the previous tab"""
+        current_index = self.content_area.tab_widget.currentIndex()
+        tab_count = self.content_area.tab_widget.count()
+        
+        if tab_count > 1:  # Only switch if there are multiple tabs
+            prev_index = (current_index - 1) % tab_count
+            self.content_area.tab_widget.setCurrentIndex(prev_index)
     
     def test_backend_connection(self):
         """Test backend connection manually"""
