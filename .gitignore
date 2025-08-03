@@ -1,0 +1,40 @@
+# Build directories
+backend/build/
+build/
+dist/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+
+# IDE files
+.vscode/settings.json
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+*.vcxproj
+*.vcxproj.filters
+*.sln
+
+# PyInstaller
+*.spec.bak
+*.manifest
+*.exe.log
+
+# Temporary files
+*.tmp
+*.temp
+*.log

@@ -1,0 +1,4 @@
+PyQt6>=6.4.0
+PyQt6-tools>=6.4.0
+darkdetect>=0.8.0
+psutil>=5.9.0
