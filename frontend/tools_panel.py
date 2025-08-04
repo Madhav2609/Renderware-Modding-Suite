@@ -4,8 +4,8 @@ Contains various modding tools and operations
 """
 
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QGroupBox, 
-                            QPushButton, QComboBox)
-from PyQt6.QtCore import pyqtSignal
+                            QPushButton, QComboBox, QMenu)
+from PyQt6.QtCore import pyqtSignal, QPoint
 
 
 class ToolsPanel(QWidget):
@@ -60,9 +60,14 @@ class ToolsPanel(QWidget):
         backup_btn = QPushButton("💾 Backup Manager")
         backup_btn.clicked.connect(lambda: self.toolRequested.emit("backup_manager", {}))
         
+        # IMG Editor
+        img_editor_btn = QPushButton("📁 IMG Editor")
+        img_editor_btn.clicked.connect(lambda: self.toolRequested.emit("img_editor", {}))
+        
         general_layout.addWidget(batch_btn)
         general_layout.addWidget(validate_btn)
         general_layout.addWidget(backup_btn)
+        general_layout.addWidget(img_editor_btn)
         
         general_group.setLayout(general_layout)
         layout.addWidget(general_group)

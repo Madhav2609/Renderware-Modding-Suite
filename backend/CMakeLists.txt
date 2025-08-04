@@ -14,11 +14,25 @@ endif()
 # Create source files list
 set(SOURCES
     src/main.cpp
+    src/main_application.cpp
+    src/handlers/dff_handler.cpp
+    src/handlers/txd_handler.cpp
+    src/handlers/col_handler.cpp
+    src/handlers/ifp_handler.cpp
+    src/handlers/ide_handler.cpp
+    src/handlers/ipl_handler.cpp
 )
 
-# Create headers list (for future use)
+# Create headers list
 set(HEADERS
-    # Will add header files here as we develop
+    src/renderware_handler.h
+    src/main_application.h
+    src/handlers/dff_handler.h
+    src/handlers/txd_handler.h
+    src/handlers/col_handler.h
+    src/handlers/ifp_handler.h
+    src/handlers/ide_handler.h
+    src/handlers/ipl_handler.h
 )
 
 # Add executable

@@ -6,9 +6,14 @@ Main area for displaying file content and tool interfaces
 import os
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
                             QTextEdit, QTabWidget, QScrollArea, QGroupBox,
-                            QPushButton, QMenu, QTabBar, QToolButton)
-from PyQt6.QtCore import Qt, pyqtSignal
+                            QPushButton, QMenu, QTabBar, QToolButton, QTableWidget,
+                            QTableWidgetItem, QHeaderView, QSplitter, QTreeWidget,
+                            QTreeWidgetItem, QLineEdit, QComboBox, QProgressBar,
+                            QFrame, QSizePolicy)
+from PyQt6.QtCore import Qt, pyqtSignal, QPoint, QPropertyAnimation, QEasingCurve
 from PyQt6.QtGui import QAction
+from tools import ToolRegistry
+from tools.file_viewers import create_file_viewer, get_file_icon
 
 
 class ContentArea(QWidget):
@@ -236,38 +241,21 @@ class ContentArea(QWidget):
             return
 
         file_name = os.path.basename(file_path)
-        file_ext = os.path.splitext(file_name)[1].lower()
         
         # Check if file is already open in a tab
         for i in range(self.tab_widget.count()):
             tab_tooltip = self.tab_widget.tabToolTip(i)
-            if tab_tooltip == file_path:
+            if tab_tooltip.startswith(file_path):
                 # File already open, just switch to it
                 self.tab_widget.setCurrentIndex(i)
                 return
 
-        # Create appropriate content widget based on file type
-        if file_ext == '.dff':
-            content_widget = self.create_dff_content(file_path)
-            tab_title = f"📦 {file_name}"
-        elif file_ext == '.txd':
-            content_widget = self.create_txd_content(file_path)
-            tab_title = f"🖼️ {file_name}"
-        elif file_ext == '.col':
-            content_widget = self.create_col_content(file_path)
-            tab_title = f"💥 {file_name}"
-        elif file_ext == '.ifp':
-            content_widget = self.create_ifp_content(file_path)
-            tab_title = f"🏃 {file_name}"
-        elif file_ext == '.ide':
-            content_widget = self.create_ide_content(file_path)
-            tab_title = f"📋 {file_name}"
-        elif file_ext == '.ipl':
-            content_widget = self.create_ipl_content(file_path)
-            tab_title = f"📍 {file_name}"
-        else:
-            content_widget = self.create_generic_content(file_path)
-            tab_title = f"📄 {file_name}"
+        # Create file viewer widget
+        content_widget = create_file_viewer(file_path)
+        
+        # Get appropriate icon and create tab title
+        icon = get_file_icon(file_path)
+        tab_title = f"{icon} {file_name}"
 
         # Add tab with tooltip and custom close button
         tab_index = self.tab_widget.addTab(content_widget, tab_title)
@@ -279,193 +267,6 @@ class ContentArea(QWidget):
         self.tab_widget.setCurrentIndex(tab_index)
 
         self.current_file = file_path
-    
-    def create_dff_content(self, file_path):
-        """Create content widget for DFF files"""
-        widget = QWidget()
-        layout = QVBoxLayout()
-        
-        # File info
-        info_label = QLabel(f"📦 DFF Model: {os.path.basename(file_path)}")
-        info_label.setStyleSheet("font-weight: bold; font-size: 14px; padding: 10px;")
-        layout.addWidget(info_label)
-        
-        # Placeholder content
-        content = QTextEdit()
-        content.setPlainText(f"""DFF Model File: {file_path}
-        
-This is a placeholder for DFF model content.
-In a complete implementation, this would show:
-- 3D model preview/renderer
-- Geometry information
-- Material assignments
-- Bone structure (if rigged)
-- LOD levels
-- Animation compatibility
-
-File analysis will be performed by the C++ backend.""")
-        content.setReadOnly(True)
-        layout.addWidget(content)
-        
-        widget.setLayout(layout)
-        return widget
-    
-    def create_txd_content(self, file_path):
-        """Create content widget for TXD files"""
-        widget = QWidget()
-        layout = QVBoxLayout()
-        
-        info_label = QLabel(f"🖼️ TXD Texture Dictionary: {os.path.basename(file_path)}")
-        info_label.setStyleSheet("font-weight: bold; font-size: 14px; padding: 10px;")
-        layout.addWidget(info_label)
-        
-        content = QTextEdit()
-        content.setPlainText(f"""TXD Texture Dictionary: {file_path}
-        
-This is a placeholder for TXD texture content.
-In a complete implementation, this would show:
-- Texture thumbnail grid
-- Texture properties (format, size, compression)
-- Alpha channels
-- Mipmaps
-- Export/import tools
-
-File analysis will be performed by the C++ backend.""")
-        content.setReadOnly(True)
-        layout.addWidget(content)
-        
-        widget.setLayout(layout)
-        return widget
-    
-    def create_col_content(self, file_path):
-        """Create content widget for COL files"""
-        widget = QWidget()
-        layout = QVBoxLayout()
-        
-        info_label = QLabel(f"💥 COL Collision: {os.path.basename(file_path)}")
-        info_label.setStyleSheet("font-weight: bold; font-size: 14px; padding: 10px;")
-        layout.addWidget(info_label)
-        
-        content = QTextEdit()
-        content.setPlainText(f"""COL Collision File: {file_path}
-        
-This is a placeholder for COL collision content.
-In a complete implementation, this would show:
-- Collision mesh visualization
-- Surface properties
-- Collision flags
-- Bounding boxes
-- Physics materials
-
-File analysis will be performed by the C++ backend.""")
-        content.setReadOnly(True)
-        layout.addWidget(content)
-        
-        widget.setLayout(layout)
-        return widget
-    
-    def create_ifp_content(self, file_path):
-        """Create content widget for IFP files"""
-        widget = QWidget()
-        layout = QVBoxLayout()
-        
-        info_label = QLabel(f"🏃 IFP Animation: {os.path.basename(file_path)}")
-        info_label.setStyleSheet("font-weight: bold; font-size: 14px; padding: 10px;")
-        layout.addWidget(info_label)
-        
-        content = QTextEdit()
-        content.setPlainText(f"""IFP Animation File: {file_path}
-        
-This is a placeholder for IFP animation content.
-In a complete implementation, this would show:
-- Animation timeline
-- Keyframe editor
-- Bone hierarchy
-- Animation properties (duration, loop, etc.)
-- Preview player
-
-File analysis will be performed by the C++ backend.""")
-        content.setReadOnly(True)
-        layout.addWidget(content)
-        
-        widget.setLayout(layout)
-        return widget
-    
-    def create_ide_content(self, file_path):
-        """Create content widget for IDE files"""
-        widget = QWidget()
-        layout = QVBoxLayout()
-        
-        info_label = QLabel(f"📋 IDE Definition: {os.path.basename(file_path)}")
-        info_label.setStyleSheet("font-weight: bold; font-size: 14px; padding: 10px;")
-        layout.addWidget(info_label)
-        
-        content = QTextEdit()
-        content.setPlainText(f"""IDE Item Definition: {file_path}
-        
-This is a placeholder for IDE definition content.
-In a complete implementation, this would show:
-- Object definitions table
-- Model references
-- Texture references
-- Object properties
-- Search and filter tools
-
-File analysis will be performed by the C++ backend.""")
-        content.setReadOnly(True)
-        layout.addWidget(content)
-        
-        widget.setLayout(layout)
-        return widget
-    
-    def create_ipl_content(self, file_path):
-        """Create content widget for IPL files"""
-        widget = QWidget()
-        layout = QVBoxLayout()
-        
-        info_label = QLabel(f"📍 IPL Placement: {os.path.basename(file_path)}")
-        info_label.setStyleSheet("font-weight: bold; font-size: 14px; padding: 10px;")
-        layout.addWidget(info_label)
-        
-        content = QTextEdit()
-        content.setPlainText(f"""IPL Item Placement: {file_path}
-        
-This is a placeholder for IPL placement content.
-In a complete implementation, this would show:
-- Object placement list
-- 3D world position viewer
-- Object instances
-- Position/rotation/scale tools
-- Map integration
-
-File analysis will be performed by the C++ backend.""")
-        content.setReadOnly(True)
-        layout.addWidget(content)
-        
-        widget.setLayout(layout)
-        return widget
-    
-    def create_generic_content(self, file_path):
-        """Create content widget for unknown file types"""
-        widget = QWidget()
-        layout = QVBoxLayout()
-        
-        info_label = QLabel(f"📄 File: {os.path.basename(file_path)}")
-        info_label.setStyleSheet("font-weight: bold; font-size: 14px; padding: 10px;")
-        layout.addWidget(info_label)
-        
-        content = QTextEdit()
-        content.setPlainText(f"""File: {file_path}
-        
-This file type is not specifically supported by the modding suite.
-You can still view the raw content or use general tools.
-
-File size: {os.path.getsize(file_path)} bytes""")
-        content.setReadOnly(True)
-        layout.addWidget(content)
-        
-        widget.setLayout(layout)
-        return widget
     
     def show_tool_interface(self, tool_name, params=None):
         """Show interface for a specific tool"""
@@ -494,21 +295,40 @@ File size: {os.path.getsize(file_path)} bytes""")
         self.tab_widget.setCurrentIndex(tab_index)
     
     def create_tool_interface(self, tool_name, params):
-        """Create interface for specific tool"""
+        """Create interface for specific tool using modular system"""
+        # Check if tool is available in registry
+        if ToolRegistry.is_tool_available(tool_name):
+            tool_widget = ToolRegistry.create_tool(tool_name, self)
+            if tool_widget:
+                # Connect tool signals to handle actions
+                if hasattr(tool_widget, 'tool_action'):
+                    tool_widget.tool_action.connect(self.handle_tool_action)
+                return tool_widget
+        
+        # Fallback for tools not yet implemented
         widget = QWidget()
         layout = QVBoxLayout()
         
         # Tool header
-        header_label = QLabel(f"🔧 {tool_name.replace('_', ' ').title()}")
+        tool_info = ToolRegistry.get_tool_info(tool_name)
+        if tool_info:
+            header_text = f"{tool_info['icon']} {tool_info['name']}"
+            description = tool_info['description']
+        else:
+            header_text = f"🔧 {tool_name.replace('_', ' ').title()}"
+            description = "Tool implementation not found"
+        
+        header_label = QLabel(header_text)
         header_label.setStyleSheet("font-weight: bold; font-size: 16px; padding: 10px;")
         layout.addWidget(header_label)
         
-        # Tool content
+        # Tool content (placeholder)
         content = QTextEdit()
         content.setPlainText(f"""Tool: {tool_name}
 Parameters: {params}
+Description: {description}
 
-This is a placeholder for the {tool_name} tool interface.
+This tool is not yet implemented.
 In a complete implementation, this would provide:
 - Tool-specific controls and options
 - Real-time preview
@@ -522,6 +342,14 @@ Tool functionality will be implemented by the C++ backend.""")
         widget.setLayout(layout)
         return widget
     
+    def handle_tool_action(self, action_type, action_data):
+        """Handle tool action signals"""
+        # Show status message for tool actions
+        main_window = self.window()
+        if hasattr(main_window, 'status_bar'):
+            main_window.status_bar.show_info(f"Tool Action: {action_data}")
+    
+
     def show_error(self, message):
         """Show error message in a new tab"""
         widget = QWidget()
