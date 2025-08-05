@@ -16,22 +16,12 @@ def build_executable_simple():
     
     # Get project paths
     project_root = Path(__file__).parent
-    frontend_dir = project_root / "frontend"
-    backend_dir = project_root / "backend"
+    ApplicationDir = project_root / "application"
     venv_python = project_root / ".venv" / "Scripts" / "python.exe"
     
     if not venv_python.exists():
         print(f"❌ Virtual environment Python not found at: {venv_python}")
         return False
-    
-    # Check if backend executable exists
-    backend_exe = backend_dir / "build" / "bin" / "Debug" / "renderware_backend.exe"
-    if not backend_exe.exists():
-        print(f"❌ Backend executable not found at: {backend_exe}")
-        print("Please ensure the backend is built first.")
-        return False
-    
-    print(f"✅ Backend found at: {backend_exe}")
     
     # Clean previous builds
     dist_dir = project_root / "dist"
@@ -45,12 +35,11 @@ def build_executable_simple():
         "--onefile",                    # Single executable
         "--windowed",                   # No console window
         "--name=RenderwareModdingSuite", # Executable name
-        f"--add-binary={backend_exe};backend",  # Add backend executable
         "--hidden-import=PyQt6.QtCore",
         "--hidden-import=PyQt6.QtGui", 
         "--hidden-import=PyQt6.QtWidgets",
         "--hidden-import=darkdetect",
-        str(frontend_dir / "main.py")   # Main entry point
+        str(ApplicationDir / "main.py")   # Main entry point
     ]
     
     print("📦 Running PyInstaller...")

@@ -4,9 +4,9 @@ Manages all available tools and their instantiation
 """
 
 from .img_editor import ImgEditorTool
-from .batch_converter import BatchConverterTool
-from .file_validator import FileValidatorTool
-from .backup_manager import BackupManagerTool
+
+
+
 
 
 class ToolRegistry:
@@ -19,39 +19,9 @@ class ToolRegistry:
             'description': 'Edit and manage IMG archive files',
             'icon': '📁'
         },
-        'batch_converter': {
-            'name': 'Batch Converter',
-            'class': BatchConverterTool,
-            'description': 'Convert multiple files at once',
-            'icon': '📦'
-        },
-        'file_validator': {
-            'name': 'File Validator',
-            'class': FileValidatorTool,
-            'description': 'Validate file integrity and format',
-            'icon': '✅'
-        },
-        'backup_manager': {
-            'name': 'Backup Manager',
-            'class': BackupManagerTool,
-            'description': 'Manage file backups and versions',
-            'icon': '💾'
-        },
-        # Future tools can be added here
-        'model_viewer': {
-            'name': 'Model Viewer',
-            'class': None,  # To be implemented
-            'description': 'View and preview 3D models',
-            'icon': '👁️'
-        },
-        'texture_viewer': {
-            'name': 'Texture Viewer',
-            'class': None,  # To be implemented
-            'description': 'View and edit textures',
-            'icon': '�️'
-        }
+        # Add other tools here as they are implemented
     }
-    
+
     @classmethod
     def get_tool_info(cls, tool_name):
         """Get information about a tool"""
@@ -85,3 +55,4 @@ class ToolRegistry:
             'description': description,
             'icon': icon
         }
+        

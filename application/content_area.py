@@ -11,9 +11,8 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                             QTreeWidgetItem, QLineEdit, QComboBox, QProgressBar,
                             QFrame, QSizePolicy)
 from PyQt6.QtCore import Qt, pyqtSignal, QPoint, QPropertyAnimation, QEasingCurve
-from PyQt6.QtGui import QAction
+from PyQt6.QtGui import QAction, QIcon
 from tools import ToolRegistry
-from tools.file_viewers import create_file_viewer, get_file_icon
 
 
 class ContentArea(QWidget):
@@ -250,12 +249,34 @@ class ContentArea(QWidget):
                 self.tab_widget.setCurrentIndex(i)
                 return
 
-        # Create file viewer widget
-        content_widget = create_file_viewer(file_path)
+        # Create a simple file viewer widget
+        content_widget = QWidget()
+        layout = QVBoxLayout(content_widget)
         
-        # Get appropriate icon and create tab title
-        icon = get_file_icon(file_path)
-        tab_title = f"{icon} {file_name}"
+        # Add file info
+        file_info_label = QLabel(f"File: {file_path}")
+        file_info_label.setWordWrap(True)
+        layout.addWidget(file_info_label)
+        
+        # Add text editor for viewing file content
+        text_editor = QTextEdit()
+        try:
+            with open(file_path, 'r', encoding='utf-8', errors='replace') as f:
+                content = f.read()
+            text_editor.setPlainText(content)
+        except Exception as e:
+            text_editor.setPlainText(f"Cannot display file content: {str(e)}\nBinary file or encoding not supported.")
+        text_editor.setReadOnly(True)
+        layout.addWidget(text_editor)
+        
+        # Use a generic file icon
+        file_ext = os.path.splitext(file_path)[1].lower()
+        if file_ext in ['.dff', '.txd', '.col', '.ifp', '.ide', '.ipl']:
+            icon_text = "📄"  # Document icon for known formats
+        else:
+            icon_text = "📄"  # Generic file icon
+            
+        tab_title = f"{icon_text} {file_name}"
 
         # Add tab with tooltip and custom close button
         tab_index = self.tab_widget.addTab(content_widget, tab_title)
@@ -335,7 +356,7 @@ In a complete implementation, this would provide:
 - Progress indicators
 - Result display
 
-Tool functionality will be implemented by the C++ backend.""")
+This tool will be implemented in a future update.""")
         content.setReadOnly(True)
         layout.addWidget(content)
         
@@ -347,7 +368,7 @@ Tool functionality will be implemented by the C++ backend.""")
         # Show status message for tool actions
         main_window = self.window()
         if hasattr(main_window, 'status_bar'):
-            main_window.status_bar.show_info(f"Tool Action: {action_data}")
+            main_window.status_bar.set_status(f"Tool Action: {action_data}")
     
 
     def show_error(self, message):

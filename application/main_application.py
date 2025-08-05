@@ -12,7 +12,6 @@ from PyQt6.QtGui import QAction, QIcon
 
 # Import modular components
 from styles import ModernDarkTheme
-from backend_manager import BackendManager
 from file_explorer import FileExplorer
 from tools_panel import ToolsPanel
 from content_area import ContentArea
@@ -24,10 +23,8 @@ class RenderwareModdingSuite(QMainWindow):
     
     def __init__(self):
         super().__init__()
-        self.backend_manager = BackendManager()
         self.setup_ui()
         self.setup_connections()
-        self.setup_backend()
         
         # Memory monitoring timer
         self.memory_timer = QTimer()
@@ -135,17 +132,6 @@ class RenderwareModdingSuite(QMainWindow):
         prev_tab_action.triggered.connect(self.switch_to_previous_tab)
         window_menu.addAction(prev_tab_action)
         
-        # Backend menu
-        backend_menu = menubar.addMenu('&Backend')
-        
-        test_action = QAction('&Test Backend', self)
-        test_action.triggered.connect(self.test_backend_connection)
-        backend_menu.addAction(test_action)
-        
-        formats_action = QAction('&List Supported Formats', self)
-        formats_action.triggered.connect(self.show_supported_formats)
-        backend_menu.addAction(formats_action)
-        
         # Help menu
         help_menu = menubar.addMenu('&Help')
         
@@ -161,37 +147,16 @@ class RenderwareModdingSuite(QMainWindow):
         # Tools Panel signals
         self.tools_panel.toolRequested.connect(self.handle_tool_request)
     
-    def setup_backend(self):
-        """Initialize backend connection"""
-        self.status_bar.set_status("Initializing backend...")
-        
-        # Test backend connection
-        if self.backend_manager.test_backend():
-            self.status_bar.set_backend_status(True, "1.0")
-            self.status_bar.set_status("Backend connected successfully", temporary=True)
-        else:
-            self.status_bar.set_backend_status(False)
-            self.status_bar.show_warning("Backend not available - some features may be limited")
-    
     def load_file(self, file_path):
         """Load file in content area"""
         self.status_bar.set_status(f"Loading {os.path.basename(file_path)}...")
         self.status_bar.set_file_info(file_path)
         
         try:
-            # Use backend to analyze file
-            result = self.backend_manager.load_file(file_path)
-            
-            if result and result.get('success'):
-                self.content_area.load_file(file_path)
-                self.status_bar.show_success(f"Loaded {os.path.basename(file_path)}")
-            else:
-                error_msg = result.get('error', 'Unknown error') if result else 'Backend unavailable'
-                self.status_bar.show_error(f"Failed to load file: {error_msg}")
+            # Load file in content area
+            self.content_area.load_file(file_path)
+            self.status_bar.show_success(f"Loaded {os.path.basename(file_path)}")
                 
-                # Still try to show file in UI
-                self.content_area.load_file(file_path)
-        
         except Exception as e:
             self.status_bar.show_error(f"Error loading file: {str(e)}")
             
@@ -228,51 +193,6 @@ class RenderwareModdingSuite(QMainWindow):
             prev_index = (current_index - 1) % tab_count
             self.content_area.tab_widget.setCurrentIndex(prev_index)
     
-    def test_backend_connection(self):
-        """Test backend connection manually"""
-        self.status_bar.set_status("Testing backend connection...")
-        
-        if self.backend_manager.test_backend():
-            self.status_bar.set_backend_status(True, "1.0")
-            self.status_bar.show_success("Backend connection successful")
-            
-            QMessageBox.information(
-                self,
-                "Backend Test",
-                "Backend connection successful!\n\nThe C++ backend is responding correctly."
-            )
-        else:
-            self.status_bar.set_backend_status(False)
-            self.status_bar.show_error("Backend connection failed")
-            
-            QMessageBox.warning(
-                self,
-                "Backend Test",
-                "Backend connection failed!\n\nThe C++ backend is not responding. Some features may be limited."
-            )
-    
-    def show_supported_formats(self):
-        """Show supported file formats"""
-        self.status_bar.set_status("Retrieving supported formats...")
-        
-        formats = self.backend_manager.list_formats()
-        
-        if formats:
-            format_list = "\n".join([f"• {fmt}" for fmt in formats])
-            QMessageBox.information(
-                self,
-                "Supported Formats",
-                f"The following file formats are supported:\n\n{format_list}"
-            )
-            self.status_bar.show_success("Retrieved supported formats")
-        else:
-            QMessageBox.warning(
-                self,
-                "Supported Formats",
-                "Could not retrieve supported formats from backend."
-            )
-            self.status_bar.show_warning("Could not retrieve supported formats")
-    
     def show_about(self):
         """Show about dialog"""
         QMessageBox.about(
@@ -294,8 +214,7 @@ class RenderwareModdingSuite(QMainWindow):
             • IPL (Placements)</p>
             
             <p><b>Version:</b> 1.0<br>
-            <b>Frontend:</b> PyQt6<br>
-            <b>Backend:</b> C++</p>"""
+            <b>Frontend:</b> PyQt6</p>"""
         )
     
     def update_memory_usage(self):
@@ -307,18 +226,16 @@ class RenderwareModdingSuite(QMainWindow):
             self.status_bar.set_memory_usage(memory_mb)
         except ImportError:
             # psutil not available
-            pass
-        except Exception:
+            print("Warning: psutil module not available. Memory usage monitoring disabled.")
+            self.memory_timer.stop()  # Stop the timer to avoid repeated import attempts
+        except Exception as e:
             # Any other error
-            pass
+            print(f"Error in memory monitoring: {str(e)}")
+            self.memory_timer.stop()  # Stop the timer to prevent repeated errors
     
     def closeEvent(self, event):
         """Handle application close event"""
         self.status_bar.set_status("Shutting down...")
-        
-        # Clean up backend if needed
-        # self.backend_manager.cleanup()
-        
         event.accept()
 
 

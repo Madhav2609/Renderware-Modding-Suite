@@ -37,10 +37,6 @@ class StatusBarWidget(QWidget):
         self.progress_bar.setMaximumWidth(200)
         self.progress_bar.setVisible(False)
         
-        # Backend status indicator
-        self.backend_status = QLabel("🔴 Backend: Not Connected")
-        self.backend_status.setStyleSheet("color: #ff6b6b;")
-        
         # Memory usage (placeholder)
         self.memory_label = QLabel("Memory: 0 MB")
         self.memory_label.setStyleSheet("color: #888; font-size: 10px;")
@@ -51,7 +47,6 @@ class StatusBarWidget(QWidget):
         layout.addWidget(self.file_label)
         layout.addStretch()
         layout.addWidget(self.progress_bar)
-        layout.addWidget(self.backend_status)
         layout.addWidget(self.memory_label)
         
         self.setLayout(layout)
@@ -86,18 +81,6 @@ class StatusBarWidget(QWidget):
                 self.file_label.setText(f"📄 {file_name}")
         else:
             self.file_label.setText("No file loaded")
-    
-    def set_backend_status(self, connected=False, version=None):
-        """Set backend connection status"""
-        if connected:
-            if version:
-                self.backend_status.setText(f"🟢 Backend: Connected (v{version})")
-            else:
-                self.backend_status.setText("🟢 Backend: Connected")
-            self.backend_status.setStyleSheet("color: #51cf66;")
-        else:
-            self.backend_status.setText("🔴 Backend: Not Connected")
-            self.backend_status.setStyleSheet("color: #ff6b6b;")
     
     def show_progress(self, visible=True):
         """Show/hide progress bar"""

@@ -2,9 +2,9 @@
 
 
 a = Analysis(
-    ['C:\\Users\\karti\\Downloads\\Renderware modding suite\\frontend\\main.py'],
+    ['C:\\Users\\karti\\Downloads\\GTA-Renderware-Modding-Suite\\application\\main.py'],
     pathex=[],
-    binaries=[('C:\\Users\\karti\\Downloads\\Renderware modding suite\\backend\\build\\bin\\Debug\\renderware_backend.exe', 'backend')],
+    binaries=[],
     datas=[],
     hiddenimports=['PyQt6.QtCore', 'PyQt6.QtGui', 'PyQt6.QtWidgets', 'darkdetect'],
     hookspath=[],

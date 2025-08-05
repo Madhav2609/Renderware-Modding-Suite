@@ -4,4 +4,7 @@
 from .tool_registry import ToolRegistry
 from .img_editor import ImgEditorTool
 
-__all__ = ['ToolRegistry', 'ImgEditorTool']
+__all__ = [
+    'ToolRegistry', 
+    'ImgEditorTool', 
+]
