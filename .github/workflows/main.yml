@@ -1,15 +1,16 @@
-name: Build and Release Executable
+name: Build and Update Latest Release
 
 on:
-  release:
-    types: [published]
+  push:
+    branches:
+      - main # Triggers on every push to the main branch
 
 permissions:
-  contents: write # This is required to upload release assets
+  contents: write # Required to create/update releases and upload assets
 
 jobs:
-  build-windows:
-    name: Build Windows Executable
+  build-and-release:
+    name: Build and Update Latest Release
     runs-on: windows-latest
 
     steps:
@@ -19,12 +20,11 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11' # Or your desired Python version
+          python-version: '3.11'
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          # Install required packages for your application and the build process
           pip install PyQt6 darkdetect pyinstaller
 
       - name: Build executable with PyInstaller
@@ -40,12 +40,13 @@ jobs:
         run: |
           Compress-Archive -Path dist/RenderwareModdingSuite -DestinationPath RenderwareModdingSuite-Windows.zip
 
-      - name: Upload artifact to release
-        uses: actions/upload-release-asset@v1
+      - name: Update Latest Release
+        uses: softprops/action-gh-release@v1
         with:
-          upload_url: ${{ github.event.release.upload_url }}
-          asset_path: ./RenderwareModdingSuite-Windows.zip
-          asset_name: RenderwareModdingSuite-Windows.zip
-          asset_content_type: application/zip
+          tag_name: latest # Use a fixed tag for the "latest" release
+          name: "Latest Build (from main branch)"
+          body: "This release contains the latest build from the main branch. Assets are automatically updated on every commit."
+          prerelease: true
+          files: ./RenderwareModdingSuite-Windows.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
