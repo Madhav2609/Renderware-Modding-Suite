@@ -1,7 +1,9 @@
 """
 IMG Editor package
+Provides tools for editing GTA IMG archive files.
 """
 
-from .img_editor import ImgEditorTool
+from application.tools.IMG_Editor.IMG_Editor import ImgEditorTool
+from application.tools.IMG_Editor.img_controller import IMGController
 
-__all__ = ['ImgEditorTool']
+__all__ = ['ImgEditorTool', 'IMGController']

@@ -12,8 +12,6 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
 from PyQt6.QtCore import Qt, pyqtSignal
 
 from application.common.message_box import message_box
-# Import the core classes directly instead of their GUI components
-from application.tools.img_editor.components.img_core_classes import IMGFile, IMGEntry, IMGVersion, FileType, format_file_size
 
 
 class IMGFileInfoPanel(QGroupBox):
@@ -49,138 +47,24 @@ class IMGFileInfoPanel(QGroupBox):
             }
         """)
     
-    def update_info(self, img_file):
+    def update_info(self, img_info=None):
         """Update panel with IMG file information"""
-        if not img_file:
+        if not img_info:
+            # Reset to default state
             self.file_path_label.setText("Path: Not loaded")
             self.version_label.setText("Version: -")
             self.entry_count_label.setText("Entries: 0")
             self.total_size_label.setText("Total Size: 0 bytes")
             self.modified_label.setText("Modified: No")
             return
-        
-        # Update labels with IMG file info
-        self.file_path_label.setText(f"Path: {img_file.filepath}")
-        self.version_label.setText(f"Version: {img_file.version.name}")
-        self.entry_count_label.setText(f"Entries: {len(img_file.entries)}")
-        
-        # Calculate total size
-        total_size = sum(entry.size for entry in img_file.entries if hasattr(entry, 'size'))
-        self.total_size_label.setText(f"Total Size: {format_file_size(total_size)}")
-        
-        # Check if modified
-        is_modified = any(getattr(entry, 'is_new_entry', False) or 
-                          getattr(entry, 'is_replaced', False) 
-                          for entry in img_file.entries)
-        self.modified_label.setText(f"Modified: {'Yes' if is_modified else 'No'}")
+            
+        # Update with provided information
+        self.file_path_label.setText(f"Path: {img_info['path']}")
+        self.version_label.setText(f"Version: {img_info['version']}")
+        self.entry_count_label.setText(f"Entries: {img_info['entry_count']}")
+        self.total_size_label.setText(f"Total Size: {img_info['total_size']}")
+        self.modified_label.setText(f"Modified: {img_info['modified']}")
 
-
-    def update_info(self, entry):
-        """Update panel with entry information"""
-        if not entry:
-            self.name_label.setText("Name: -")
-            self.type_label.setText("Type: -")
-            self.size_label.setText("Size: -")
-            self.offset_label.setText("Offset: -")
-            self.version_label.setText("Version: -")
-            self.status_label.setText("Status: -")
-            return
-        
-        # Update labels with entry info
-        self.name_label.setText(f"Name: {entry.name}")
-        
-        type_text = entry.extension.upper() if hasattr(entry, 'extension') else "Unknown"
-        self.type_label.setText(f"Type: {type_text}")
-        
-        size_text = format_file_size(entry.size) if hasattr(entry, 'size') else "Unknown"
-        self.size_label.setText(f"Size: {size_text}")
-        
-        offset_text = f"0x{entry.offset:X}" if hasattr(entry, 'offset') else "Unknown"
-        self.offset_label.setText(f"Offset: {offset_text}")
-        
-        version_text = entry.get_version_text() if hasattr(entry, 'get_version_text') else "Unknown"
-        self.version_label.setText(f"Version: {version_text}")
-        
-        status_text = "New" if hasattr(entry, 'is_new_entry') and entry.is_new_entry else \
-                      "Modified" if hasattr(entry, 'is_replaced') and entry.is_replaced else \
-                      "Original"
-        self.status_label.setText(f"Status: {status_text}")
-
-
-class CollapsibleGroupBox(QGroupBox):
-    """Custom collapsible group box with accordion-style behavior using radio button style"""
-    
-    def __init__(self, title, parent=None):
-        super().__init__(title, parent)
-        self.setCheckable(True)
-        self.setChecked(False)  # Start collapsed
-        self.content_widget = QWidget()
-        self.content_layout = QVBoxLayout(self.content_widget)
-        self.accordion_parent = None  # Will be set later
-        
-        # Style as radio button instead of checkbox
-        self.setStyleSheet("""
-            QGroupBox {
-                font-weight: bold;
-                border: 2px solid #555;
-                border-radius: 5px;
-                margin-top: 1ex;
-                padding-top: 10px;
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                left: 10px;
-                padding: 0 5px 0 5px;
-            }
-            QGroupBox::indicator {
-                width: 13px;
-                height: 13px;
-                border-radius: 7px;
-                border: 2px solid #555;
-                background-color: #2b2b2b;
-            }
-            QGroupBox::indicator:checked {
-                background-color: #007acc;
-                border: 2px solid #007acc;
-            }
-            QGroupBox::indicator:unchecked {
-                background-color: #2b2b2b;
-                border: 2px solid #555;
-            }
-            QGroupBox::indicator:hover {
-                border: 2px solid #007acc;
-            }
-        """)
-        
-        # Main layout
-        main_layout = QVBoxLayout(self)
-        main_layout.addWidget(self.content_widget)
-        
-        # Connect toggle
-        self.toggled.connect(self.on_toggled)
-        
-        # Initially hide content
-        self.content_widget.setVisible(False)
-    
-    def set_accordion_parent(self, parent):
-        """Set the parent that manages accordion behavior"""
-        self.accordion_parent = parent
-    
-    def on_toggled(self, checked):
-        """Handle expand/collapse"""
-        self.content_widget.setVisible(checked)
-        
-        # If this is being expanded, collapse all other collapsible groups
-        if checked and self.accordion_parent:
-            self.accordion_parent.collapse_other_groups(self)
-    
-    def add_widget(self, widget):
-        """Add widget to content area"""
-        self.content_layout.addWidget(widget)
-    
-    def add_layout(self, layout):
-        """Add layout to content area"""
-        self.content_layout.addLayout(layout)
 
 
 class IMGEntriesTable(QTableWidget):
@@ -190,19 +74,17 @@ class IMGEntriesTable(QTableWidget):
     
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setColumnCount(7)
-        self.setHorizontalHeaderLabels(['Name', 'Type', 'Size', 'Offset', 'Version', 'Compression', 'Status'])
+        self.setColumnCount(6)
+        self.setHorizontalHeaderLabels(['Name', 'Type', 'Size', 'Offset', 'Version', 'Compression'])
         
         # Setup table properties
         self.setAlternatingRowColors(True)
         self.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.setSelectionMode(QTableWidget.SelectionMode.ExtendedSelection)
         
-        # Auto-resize columns
+        # Auto-resize columns to fill the available space
         header = self.horizontalHeader()
-        header.setStretchLastSection(True)
-        for i in range(6):
-            header.setSectionResizeMode(i, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
             
         # Add style for modern look
         self.setStyleSheet("""
@@ -236,77 +118,82 @@ class IMGEntriesTable(QTableWidget):
     def _on_item_double_clicked(self, item):
         """Handle double-click on entry"""
         row = item.row()
-        if hasattr(self, 'entries') and row < len(self.entries):
-            self.entry_double_clicked.emit(self.entries[row])
+        # Get the entry from the table's row data
+        entry = self.item(row, 0).data(Qt.ItemDataRole.UserRole)
+        if entry:
+            self.entry_double_clicked.emit(entry)
     
     def _on_selection_changed(self):
         """Handle selection change"""
-        selected_rows = {item.row() for item in self.selectedItems()}
-        if hasattr(self, 'entries') and selected_rows:
-            # Get the first selected entry
-            row = min(selected_rows)
-            if row < len(self.entries):
-                self.entry_selected.emit(self.entries[row])
+        selected_entries = []
+        
+        # Get all selected rows
+        for index in self.selectedIndexes():
+            if index.column() == 0:  # Only count each row once
+                entry = self.item(index.row(), 0).data(Qt.ItemDataRole.UserRole)
+                if entry:
+                    selected_entries.append(entry)
+        
+        if selected_entries:
+            self.entry_selected.emit(selected_entries)
     
     def populate_entries(self, entries):
         """Populate table with entries"""
-        self.entries = entries
-        self.setRowCount(0)  # Clear existing rows
+        self.setRowCount(0)  # Clear the table
         
-        for i, entry in enumerate(entries):
-            self.insertRow(i)
+        if not entries:
+            return
             
-            # Name
-            self.setItem(i, 0, QTableWidgetItem(entry.name))
+        # Disable sorting temporarily for better performance
+        self.setSortingEnabled(False)
+        
+        for entry in entries:
+            row = self.rowCount()
+            self.insertRow(row)
             
-            # Type
-            type_text = entry.extension.upper() if hasattr(entry, 'extension') else "Unknown"
-            self.setItem(i, 1, QTableWidgetItem(type_text))
+            # Set entry data
+            name_item = QTableWidgetItem(entry.name)
+            name_item.setData(Qt.ItemDataRole.UserRole, entry)  # Store entry object in the item
             
-            # Size
-            size_text = format_file_size(entry.size) if hasattr(entry, 'size') else "Unknown"
-            self.setItem(i, 2, QTableWidgetItem(size_text))
+            type_item = QTableWidgetItem(entry.type)
+            size_item = QTableWidgetItem(f"{entry.actual_size:,}")
+            offset_item = QTableWidgetItem(f"{entry.offset}")
             
-            # Offset
-            offset_text = f"0x{entry.offset:X}" if hasattr(entry, 'offset') else "Unknown"
-            self.setItem(i, 3, QTableWidgetItem(offset_text))
+            # For V2 archives, show streaming size, otherwise show dash
+            if hasattr(entry, 'streaming_size') and entry.streaming_size > 0:
+                streaming_item = QTableWidgetItem(f"{entry.streaming_size}")
+            else:
+                streaming_item = QTableWidgetItem("-")
+                
+            # Compression status
+            comp_item = QTableWidgetItem("Yes" if entry.is_compressed else "No")
             
-            # Version
-            version_text = entry.get_version_text() if hasattr(entry, 'get_version_text') else "Unknown"
-            self.setItem(i, 4, QTableWidgetItem(version_text))
-            
-            # Compression
-            compression_text = entry.compression_type.value if hasattr(entry, 'compression_type') else "None"
-            self.setItem(i, 5, QTableWidgetItem(compression_text))
-            
-            # Status
-            status_text = "New" if hasattr(entry, 'is_new_entry') and entry.is_new_entry else \
-                          "Modified" if hasattr(entry, 'is_replaced') and entry.is_replaced else \
-                          "Original"
-            self.setItem(i, 6, QTableWidgetItem(status_text))
+            # Add items to the row
+            self.setItem(row, 0, name_item)
+            self.setItem(row, 1, type_item)
+            self.setItem(row, 2, size_item)
+            self.setItem(row, 3, offset_item)
+            self.setItem(row, 4, streaming_item)
+            self.setItem(row, 5, comp_item)
+        
+        self.setSortingEnabled(True)
+        self.sortByColumn(0, Qt.SortOrder.AscendingOrder)  # Sort by name initially
     
     def apply_filter(self, filter_text=None, filter_type=None):
         """Apply filter to table entries"""
-        if not hasattr(self, 'entries'):
-            return
-            
-        filter_text = filter_text.lower() if filter_text else ""
-        
-        for i, entry in enumerate(self.entries):
+        for row in range(self.rowCount()):
             show_row = True
             
-            # Apply text filter
-            if filter_text and filter_text not in entry.name.lower():
+            name_item = self.item(row, 0)
+            type_item = self.item(row, 1)
+            
+            if filter_text and filter_text.lower() not in name_item.text().lower():
                 show_row = False
                 
-            # Apply type filter
-            if filter_type and filter_type != "All":
-                entry_type = entry.extension.upper() if hasattr(entry, 'extension') else ""
-                if entry_type != filter_type:
-                    show_row = False
-            
-            # Show/hide row
-            self.setRowHidden(i, not show_row)
+            if filter_type and filter_type != "All" and type_item.text() != filter_type:
+                show_row = False
+                
+            self.setRowHidden(row, not show_row)
 
 
 class FilterPanel(QWidget):
@@ -379,7 +266,7 @@ class FilterPanel(QWidget):
     def _filter_changed(self):
         """Emit signal when filter is changed"""
         filter_text = self.search_edit.text()
-        filter_type = self.type_combo.currentText()
+        filter_type = self.type_combo.currentText() if self.type_combo.currentText() != "All" else None
         self.filter_changed.emit(filter_text, filter_type)
 
 
@@ -388,6 +275,12 @@ class ImgEditorTool(QWidget):
     
     # Signals for tool actions
     tool_action = pyqtSignal(str, str)  # action_name, parameters
+    
+    # Import UI interaction handlers
+    from .ui_interaction_handlers import (_open_img_file, _create_new_img, _save_img, 
+                                  _save_img_as, _close_img, _add_files, 
+                                  _extract_selected, _delete_selected,
+                                  _on_img_loaded, _on_img_closed, _on_entries_updated)
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -867,32 +760,75 @@ class ImgEditorTool(QWidget):
     
     def handle_img_tool(self, tool_name):
         """Handle IMG tool action"""
-        # Emit signal with tool action
-        self.tool_action.emit("img_tool", tool_name)
+        # Initialize backend if not already done
+        if not hasattr(self, 'img_editor'):
+            from .img_controller import IMGController
+            self.img_editor = IMGController()
+            
+            # Connect signals
+            self.img_editor.img_loaded.connect(self._on_img_loaded)
+            self.img_editor.img_closed.connect(self._on_img_closed)
+            self.img_editor.entries_updated.connect(self._on_entries_updated)
+        
+        # Handle different tool actions
+        if tool_name == "Open IMG":
+            self._open_img_file()
+        elif tool_name == "Create New IMG":
+            self._create_new_img()
+        elif tool_name == "Save IMG":
+            self._save_img()
+        elif tool_name == "Save IMG As":
+            self._save_img_as()
+        elif tool_name == "Close IMG":
+            self._close_img()
+        elif tool_name == "Add Files":
+            self._add_files()
+        elif tool_name == "Extract Selected":
+            self._extract_selected()
+        elif tool_name == "Delete Selected":
+            self._delete_selected()
+        else:
+            # For other tools not yet implemented
+            from application.common.message_box import message_box
+            message_box.info(f"The '{tool_name}' feature is not implemented yet.", "Feature Not Implemented")
     
     def _on_filter_changed(self, filter_text, filter_type):
         """Apply filters to the entries table"""
-        if hasattr(self, 'entries_table'):
-            self.entries_table.apply_filter(filter_text, filter_type)
+        self.entries_table.apply_filter(filter_text, filter_type)
     
     def _on_entry_double_clicked(self, entry):
         """Handle double-click on an entry"""
-        # Default action is to extract the entry
-        self.tool_action.emit("extract_entry", entry.name)
-    
-    def _on_entry_selected(self, entry):
-        """Handle entry selection - update info panel"""
-        # In the future, update an entry info panel
-        self.tool_action.emit("show_entry_info", entry.name)
-    
-    def load_img_file(self, img_file):
-        """Load an IMG file into the editor"""
-        self.img_file = img_file
+        # In a real implementation, this might show a preview or allow editing
+        # For now, show entry details
+        entry_info = f"Name: {entry.name}\n"
+        entry_info += f"Type: {entry.type}\n"
+        entry_info += f"Size: {entry.actual_size:,} bytes\n"
+        entry_info += f"Offset: Sector {entry.offset}"
         
-        # Populate entries table
-        if hasattr(self, 'entries_table') and img_file:
-            self.entries_table.populate_entries(img_file.entries)
+        message_box("Entry Details", entry_info, "info")
+    
+    def _on_entry_selected(self, entries):
+        """Handle entry selection - update info panel"""
+        # Store selected entries in the main editor
+        if hasattr(self, 'img_editor'):
+            self.img_editor.set_selected_entries(entries)
+    
+    def load_img_file(self, file_path):
+        """Load an IMG file into the editor"""
+        # Initialize backend if not already done
+        if not hasattr(self, 'img_editor'):
+            from .img_controller import IMGController
+            self.img_editor = IMGController()
             
-            # Update status bar
-            msg = f"Loaded IMG file with {len(img_file.entries)} entries"
-            self.tool_action.emit("status_update", msg)
+            # Connect signals
+            self.img_editor.img_loaded.connect(self._on_img_loaded)
+            self.img_editor.img_closed.connect(self._on_img_closed)
+            self.img_editor.entries_updated.connect(self._on_entries_updated)
+            
+        # Load the file
+        success, message = self.img_editor.open_img(file_path)
+        
+        if not success:
+            message_box.error("Error Loading IMG", message, "error")
+            
+        return success

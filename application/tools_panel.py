@@ -48,7 +48,7 @@ class ToolsPanel(QWidget):
         # IMG Editor
         img_btn = QPushButton("📦 IMG Editor")
         img_btn.setToolTip("Edit and manage IMG archive files")
-        img_btn.clicked.connect(lambda: self.toolRequested.emit("img_editor", {}))
+        img_btn.clicked.connect(lambda: self.toolRequested.emit("IMG_Editor", {}))
         
         # TXD Editor
         txd_btn = QPushButton("�️ TXD Editor")

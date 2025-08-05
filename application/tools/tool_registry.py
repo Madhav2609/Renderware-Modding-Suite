@@ -3,7 +3,7 @@ Tool Registry for Renderware Modding Suite
 Manages all available tools and their instantiation
 """
 
-from .img_editor import ImgEditorTool
+from application.tools.IMG_Editor import ImgEditorTool
 
 
 
@@ -13,8 +13,8 @@ class ToolRegistry:
     """Registry for all available tools"""
     
     _tools = {
-        'img_editor': {
-            'name': 'IMG Editor',
+        'IMG_Editor': {
+            'name': 'IMG_Editor',
             'class': ImgEditorTool,
             'description': 'Edit and manage IMG archive files',
             'icon': '📁'

@@ -32,7 +32,7 @@ def build_executable_simple():
     # PyInstaller command - simple version
     pyinstaller_cmd = [
         str(venv_python), "-m", "PyInstaller",
-        "--onefile",                    # Single executable
+        "--onedir",                    # Single executable
         "--windowed",                   # No console window
         "--name=RenderwareModdingSuite", # Executable name
         "--hidden-import=PyQt6.QtCore",
@@ -53,7 +53,7 @@ def build_executable_simple():
         result = subprocess.run(pyinstaller_cmd, capture_output=True, text=True)
         
         if result.returncode == 0:
-            exe_path = dist_dir / "RenderwareModdingSuite.exe"
+            exe_path = dist_dir / "RenderwareModdingSuite" / "RenderwareModdingSuite.exe"
             if exe_path.exists():
                 exe_size = exe_path.stat().st_size / (1024 * 1024)  # Size in MB
                 print(f"✅ Build successful!")

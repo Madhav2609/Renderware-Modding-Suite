@@ -11,11 +11,11 @@ from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QAction, QIcon
 
 # Import modular components
-from styles import ModernDarkTheme
-from file_explorer import FileExplorer
-from tools_panel import ToolsPanel
-from content_area import ContentArea
-from status_bar import StatusBarWidget
+from application.styles import ModernDarkTheme
+from application.file_explorer import FileExplorer
+from application.tools_panel import ToolsPanel
+from application.content_area import ContentArea
+from application.status_bar import StatusBarWidget
 
 
 class RenderwareModdingSuite(QMainWindow):
