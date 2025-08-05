@@ -46,7 +46,7 @@ jobs:
           tag_name: latest # Use a fixed tag for the "latest" release
           name: "Latest Build (from main branch)"
           body: "This release contains the latest build from the main branch. Assets are automatically updated on every commit."
-          prerelease: true
+          prerelease: false
           files: ./RenderwareModdingSuite-Windows.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
