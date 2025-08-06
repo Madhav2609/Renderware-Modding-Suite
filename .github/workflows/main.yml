@@ -34,7 +34,10 @@ jobs:
 
       - name: Archive the build artifact
         run: |
-          Compress-Archive -Path dist/main.dist -DestinationPath RenderwareModdingSuite-Windows.zip
+          # Rename the main.dist folder to the desired name
+          Rename-Item -Path "dist/main.dist" -NewName "RW GTA 3D Era Modding Suite"
+          # Create the zip archive with the entire folder
+          Compress-Archive -Path "dist/RW GTA 3D Era Modding Suite" -DestinationPath RenderwareModdingSuite-Windows.zip
 
       - name: Update Latest Release
         uses: softprops/action-gh-release@v1
