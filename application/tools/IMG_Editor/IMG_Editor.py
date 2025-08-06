@@ -393,11 +393,12 @@ class ImgEditorTool(QWidget):
     
     def setup_ui(self):
         """Setup the IMG Editor interface"""
-        main_layout = QVBoxLayout()
-        
         # IMG Editor header
         header_label = QLabel("📁 IMG Editor")
         header_label.setStyleSheet("font-weight: bold; font-size: 16px; padding: 10px;")
+        
+        # Main layout
+        main_layout = QVBoxLayout()
         main_layout.addWidget(header_label)
         
         # Main splitter for IMG content
@@ -412,11 +413,17 @@ class ImgEditorTool(QWidget):
         # Add panels to splitter
         splitter.addWidget(left_panel)
         splitter.addWidget(right_panel)
-        splitter.setSizes([500, 100])  # Set balanced initial sizes
+        
+        # Set initial sizes, adjust these values as needed
+        splitter.setSizes([500, 300])
+        
+        # Set stretch factors: 1 for panels that should resize, 0 for fixed size
         splitter.setStretchFactor(0, 1)  # Left panel can stretch
         splitter.setStretchFactor(1, 1)  # Right panel can stretch equally
         
-        main_layout.addWidget(splitter)
+        # Add the splitter to the main layout with a stretch factor of 1
+        # This makes the splitter expand to fill available vertical space.
+        main_layout.addWidget(splitter, 1)
         
         # Make sure the widget stretches to fill available space
         self.setMinimumHeight(400)  # Increased minimum height for stability
@@ -465,9 +472,8 @@ class ImgEditorTool(QWidget):
         right_layout = QVBoxLayout()
         
         # Set size policy and fixed dimensions to prevent resizing
-        right_panel.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        right_panel.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
         right_panel.setMinimumWidth(350)  # Minimum width for right panel
-        right_panel.setMinimumHeight(600)  # Minimum height to prevent collapse
         
         self.file_info_panel = IMGFileInfoPanel()
         right_layout.addWidget(self.file_info_panel)
@@ -497,11 +503,10 @@ class ImgEditorTool(QWidget):
         tools_scroll = QScrollArea()
         tools_scroll.setWidget(tools_group)
         tools_scroll.setWidgetResizable(True)
-        tools_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         tools_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        tools_scroll.setMinimumHeight(500)  # Maintain minimum height
         
-        right_layout.addWidget(tools_scroll)
+        # Add the scroll area with a stretch factor to make it fill remaining space
+        right_layout.addWidget(tools_scroll, 1)
         
         right_panel.setLayout(right_layout)
         return right_panel
@@ -589,9 +594,8 @@ class ImgEditorTool(QWidget):
         # Main grid layout for buttons
         file_grid = QGridLayout()
         # Set horizontal spacing between columns
-        file_grid.setHorizontalSpacing(10)
+        file_grid.setHorizontalSpacing(5)
         # Set vertical spacing between rows
-        file_grid.setVerticalSpacing(5)
         
         # Create buttons
         create_new_btn = QPushButton("📄 Create New")
