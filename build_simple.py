@@ -1,90 +1,54 @@
 """
-Simple Build script for Renderware Modding Suite
-Builds executable without reinstalling packages
+Simplified Build script for Renderware Modding Suite
+Builds executable using Nuitka in standalone mode.
 """
 
-import os
 import subprocess
-import sys
-import shutil
 from pathlib import Path
 
 def build_executable_simple():
-    """Build the executable using PyInstaller - simple version"""
-    
-    print("🔨 Building Renderware Modding Suite Executable...")
-    
-    # Get project paths
+    """Build the executable using Nuitka - standalone mode"""
+    print("🔨 Building Renderware Modding Suite Executable with Nuitka (Standalone Mode)...")
+
+    # Define paths
     project_root = Path(__file__).parent
-    ApplicationDir = project_root / "application"
-    venv_python = project_root / ".venv" / "Scripts" / "python.exe"
-    
-    if not venv_python.exists():
-        print(f"❌ Virtual environment Python not found at: {venv_python}")
-        return False
-    
-    # Clean previous builds
     dist_dir = project_root / "dist"
-    if dist_dir.exists():
-        shutil.rmtree(dist_dir)
-        print("🧹 Cleaned previous dist directory")
-    
-    # PyInstaller command - simple version
-    pyinstaller_cmd = [
-        str(venv_python), "-m", "PyInstaller",
-        "--onedir",                    # Single executable
-        "--windowed",                   # No console window
-        "--name=RenderwareModdingSuite", # Executable name
-        "--hidden-import=PyQt6.QtCore",
-        "--hidden-import=PyQt6.QtGui", 
-        "--hidden-import=PyQt6.QtWidgets",
-        "--hidden-import=darkdetect",
-        str(ApplicationDir / "main.py")   # Main entry point
+    application_main = project_root / "application" / "main.py"
+    venv_python = project_root / ".venv" / "Scripts" / "python.exe"
+    icon_file = project_root / "icon.ico"
+
+    # Nuitka command
+    nuitka_cmd = [
+        str(venv_python), "-m", "nuitka",
+        "--standalone",                   # Enable standalone mode
+        "--windows-console-mode=disable", # Disable console window
+        f"--output-dir={dist_dir}",       # Output directory
+        f"--output-filename=RenderwareModdingSuite.exe",
+        "--enable-plugin=pyqt6",          # Enable PyQt6 plugin
+        f"--windows-icon-from-ico={icon_file}",  # Set application icon
+        f"--include-data-file={icon_file}=icon.ico",  # Include icon as resource
+        str(application_main)             # Main entry point
     ]
-    
-    print("📦 Running PyInstaller...")
-    print(f"Command: {' '.join(pyinstaller_cmd)}")
+
+    print(f"📦 Running Nuitka command: {' '.join(nuitka_cmd)}")
     
     try:
-        # Change to project directory
-        os.chdir(project_root)
-        
-        # Run PyInstaller
-        result = subprocess.run(pyinstaller_cmd, capture_output=True, text=True)
-        
-        if result.returncode == 0:
-            exe_path = dist_dir / "RenderwareModdingSuite" / "RenderwareModdingSuite.exe"
-            if exe_path.exists():
-                exe_size = exe_path.stat().st_size / (1024 * 1024)  # Size in MB
-                print(f"✅ Build successful!")
-                print(f"📁 Executable created: {exe_path}")
-                print(f"📏 Size: {exe_size:.1f} MB")
-                return True
-            else:
-                print("❌ Executable not found after build")
-                return False
-        else:
-            print("❌ PyInstaller failed:")
-            print("STDOUT:", result.stdout)
-            print("STDERR:", result.stderr)
-            return False
-            
-    except Exception as e:
-        print(f"❌ Build error: {e}")
+        # Run the Nuitka command
+        result = subprocess.run(nuitka_cmd, check=True, capture_output=True, text=True)
+        print("✅ Nuitka build completed successfully!")
+        print(result.stdout)
+        return True
+    except subprocess.CalledProcessError as e:
+        print(f"❌ Nuitka build failed with error code {e.returncode}")
+        print(f"Error output: {e.stderr}")
+        return False
+    except FileNotFoundError:
+        print("❌ Python executable not found. Make sure the virtual environment is set up correctly.")
         return False
 
-def main():
-    """Main build process"""
-    print("🚀 Renderware Modding Suite Simple Build")
-    print("=" * 50)
-    
-    if build_executable_simple():
-        print("\n🎉 Build completed successfully!")
-        print("📁 Check the 'dist' folder for your executable")
-        return 0
-    else:
-        print("\n❌ Build failed")
-        return 1
 
 if __name__ == "__main__":
-    sys.exit(main())
+    if build_executable_simple():
+        print("\n🎉 Build completed successfully!")
+    else:
+        print("\n❌ Build failed")
