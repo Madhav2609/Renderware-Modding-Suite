@@ -4,26 +4,24 @@ Builds executable using Nuitka in standalone mode.
 """
 
 import subprocess
-import sys
 from pathlib import Path
 
 def build_executable_simple():
     """Build the executable using Nuitka - standalone mode"""
-    print("Building Renderware Modding Suite Executable with Nuitka (Standalone Mode)...")
+    print("🔨 Building Renderware Modding Suite Executable with Nuitka (Standalone Mode)...")
 
     # Define paths
     project_root = Path(__file__).parent
     dist_dir = project_root / "dist"
     application_main = project_root / "application" / "main.py"
-    
-    # Use current Python executable (works in both local venv and CI)
-    python_exe = sys.executable
+    venv_python = project_root / ".venv" / "Scripts" / "python.exe"
     icon_file = project_root / "icon.ico"
 
     # Nuitka command
     nuitka_cmd = [
-        str(python_exe), "-m", "nuitka",
+        str(venv_python), "-m", "nuitka",
         "--standalone",                   # Enable standalone mode
+        "--verbose",                   # Show detailed build output
         "--windows-console-mode=disable", # Disable console window
         f"--output-dir={dist_dir}",       # Output directory
         f"--output-filename=RenderwareModdingSuite.exe",
@@ -33,25 +31,23 @@ def build_executable_simple():
         str(application_main)             # Main entry point
     ]
 
-    print(f"Running Nuitka command: {' '.join(nuitka_cmd)}")
+    print(f"📦 Running Nuitka command: {' '.join(nuitka_cmd)}")
     
     try:
-        # Run the Nuitka command
-        result = subprocess.run(nuitka_cmd, check=True, capture_output=True, text=True)
-        print("Nuitka build completed successfully!")
-        print(result.stdout)
+        # Run the Nuitka command with real-time output
+        result = subprocess.run(nuitka_cmd, check=True, text=True)
+        print("✅ Nuitka build completed successfully!")
         return True
     except subprocess.CalledProcessError as e:
-        print(f"Nuitka build failed with error code {e.returncode}")
-        print(f"Error output: {e.stderr}")
+        print(f"❌ Nuitka build failed with error code {e.returncode}")
         return False
     except FileNotFoundError:
-        print("Python executable not found. Make sure the virtual environment is set up correctly.")
+        print("❌ Python executable not found. Make sure the virtual environment is set up correctly.")
         return False
 
 
 if __name__ == "__main__":
     if build_executable_simple():
-        print("\nBuild completed successfully!")
+        print("\n🎉 Build completed successfully!")
     else:
-        print("\nBuild failed")
+        print("\n❌ Build failed")

@@ -5,6 +5,7 @@ Coordinates all components and manages application state
 
 import sys
 import os
+from pathlib import Path
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                             QHBoxLayout, QSplitter, QMenuBar, QMenu, QMessageBox)
 from PyQt6.QtCore import Qt, QTimer
@@ -35,6 +36,9 @@ class RenderwareModdingSuite(QMainWindow):
         """Setup the user interface"""
         self.setWindowTitle("Renderware Modding Suite - GTA 3D Era Tool")
         self.setGeometry(100, 100, 1400, 900)
+        
+        # Set application icon
+        self.set_window_icon()
         
         # Create main widget and layout
         main_widget = QWidget()
@@ -76,6 +80,40 @@ class RenderwareModdingSuite(QMainWindow):
         
         # Create menu bar after all components are initialized
         self.create_menu_bar()
+    
+    def set_window_icon(self):
+        """Set the application window icon"""
+        try:
+            # Try to find icon in different possible locations
+            possible_paths = [
+                # When running as executable
+                os.path.join(os.path.dirname(sys.executable), "icon.ico"),
+                # When running from source
+                os.path.join(os.path.dirname(__file__), "..", "icon.ico"),
+                # Alternative source location
+                os.path.join(os.path.dirname(__file__), "..", "..", "icon.ico"),
+                # Current working directory
+                "icon.ico"
+            ]
+            
+            icon_path = None
+            for path in possible_paths:
+                if os.path.exists(path):
+                    icon_path = path
+                    break
+            
+            if icon_path:
+                icon = QIcon(icon_path)
+                if not icon.isNull():
+                    self.setWindowIcon(icon)
+                    print(f"✅ Application icon loaded from: {icon_path}")
+                else:
+                    print(f"⚠️ Icon file found but couldn't be loaded: {icon_path}")
+            else:
+                print("⚠️ Icon file not found in any expected location")
+                
+        except Exception as e:
+            print(f"⚠️ Error setting window icon: {e}")
     
     def create_menu_bar(self):
         """Create application menu bar"""
@@ -242,6 +280,34 @@ class RenderwareModdingSuite(QMainWindow):
 def main():
     """Main application entry point"""
     app = QApplication(sys.argv)
+    
+    # Set application icon globally
+    try:
+        # Try to find icon in different possible locations
+        possible_paths = [
+            # When running as executable
+            os.path.join(os.path.dirname(sys.executable), "icon.ico"),
+            # When running from source
+            os.path.join(os.path.dirname(__file__), "..", "icon.ico"),
+            # Alternative source location
+            os.path.join(os.path.dirname(__file__), "..", "..", "icon.ico"),
+            # Current working directory
+            "icon.ico"
+        ]
+        
+        icon_path = None
+        for path in possible_paths:
+            if os.path.exists(path):
+                icon_path = path
+                break
+        
+        if icon_path:
+            app_icon = QIcon(icon_path)
+            if not app_icon.isNull():
+                app.setWindowIcon(app_icon)
+                print(f"✅ Global application icon set from: {icon_path}")
+    except Exception as e:
+        print(f"⚠️ Error setting global application icon: {e}")
     
     # Apply modern dark theme
     theme = ModernDarkTheme()

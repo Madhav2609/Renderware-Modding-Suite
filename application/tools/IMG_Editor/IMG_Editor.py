@@ -31,12 +31,18 @@ class IMGFileInfoPanel(QGroupBox):
         self.total_size_label = QLabel("Total Size: 0 bytes")
         self.modified_label = QLabel("Modified: No")
         
+        # RenderWare version summary labels
+        self.rw_files_label = QLabel("RenderWare Files: 0")
+        self.rw_versions_label = QLabel("RW Versions: None")
+        
         # Add labels to layout
         layout.addWidget(self.file_path_label)
         layout.addWidget(self.version_label)
         layout.addWidget(self.entry_count_label)
         layout.addWidget(self.total_size_label)
         layout.addWidget(self.modified_label)
+        layout.addWidget(self.rw_files_label)
+        layout.addWidget(self.rw_versions_label)
         
         # Apply modern styling
         self.setStyleSheet("""
@@ -47,7 +53,7 @@ class IMGFileInfoPanel(QGroupBox):
             }
         """)
     
-    def update_info(self, img_info=None):
+    def update_info(self, img_info=None, rw_summary=None):
         """Update panel with IMG file information"""
         if not img_info:
             # Reset to default state
@@ -56,6 +62,8 @@ class IMGFileInfoPanel(QGroupBox):
             self.entry_count_label.setText("Entries: 0")
             self.total_size_label.setText("Total Size: 0 bytes")
             self.modified_label.setText("Modified: No")
+            self.rw_files_label.setText("RenderWare Files: 0")
+            self.rw_versions_label.setText("RW Versions: None")
             return
             
         # Update with provided information
@@ -64,6 +72,27 @@ class IMGFileInfoPanel(QGroupBox):
         self.entry_count_label.setText(f"Entries: {img_info['entry_count']}")
         self.total_size_label.setText(f"Total Size: {img_info['total_size']}")
         self.modified_label.setText(f"Modified: {img_info['modified']}")
+        
+        # Update RenderWare version summary
+        if rw_summary:
+            self.rw_files_label.setText(f"RenderWare Files: {rw_summary['renderware_files']}/{rw_summary['total_files']}")
+            
+            # Show most common RW versions
+            version_breakdown = rw_summary.get('version_breakdown', {})
+            if version_breakdown:
+                # Get top 3 most common versions
+                sorted_versions = sorted(version_breakdown.items(), key=lambda x: x[1], reverse=True)[:3]
+                versions_text = ", ".join([f"{name} ({count})" for name, count in sorted_versions])
+                self.rw_versions_label.setText(f"RW Versions: {versions_text}")
+                
+                # Set tooltip with full breakdown
+                full_breakdown = "\n".join([f"{name}: {count} files" for name, count in sorted_versions])
+                self.rw_versions_label.setToolTip(f"RenderWare Version Breakdown:\n{full_breakdown}")
+            else:
+                self.rw_versions_label.setText("RW Versions: None detected")
+        else:
+            self.rw_files_label.setText("RenderWare Files: Analyzing...")
+            self.rw_versions_label.setText("RW Versions: Analyzing...")
 
 
 
@@ -74,8 +103,8 @@ class IMGEntriesTable(QTableWidget):
     
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setColumnCount(6)
-        self.setHorizontalHeaderLabels(['Name', 'Type', 'Size', 'Offset', 'Version', 'Compression'])
+        self.setColumnCount(7)
+        self.setHorizontalHeaderLabels(['Name', 'Type', 'Size', 'Offset', 'RW Version', 'Streaming', 'Compression'])
         
         # Setup table properties
         self.setAlternatingRowColors(True)
@@ -159,6 +188,20 @@ class IMGEntriesTable(QTableWidget):
             size_item = QTableWidgetItem(f"{entry.actual_size:,}")
             offset_item = QTableWidgetItem(f"{entry.offset}")
             
+            # RenderWare version information
+            if hasattr(entry, 'rw_version_name') and entry.rw_version_name:
+                rw_version_item = QTableWidgetItem(entry.rw_version_name)
+                # Color code based on version type
+                if entry.is_renderware_file() and entry.rw_version is not None:
+                    rw_version_item.setToolTip(f"RW Version: 0x{entry.rw_version:X}")
+                elif entry.rw_version_name and "COL" in entry.rw_version_name:
+                    rw_version_item.setToolTip(f"Collision file: {entry.rw_version_name}")
+                else:
+                    rw_version_item.setToolTip("Not a standard RenderWare file")
+            else:
+                rw_version_item = QTableWidgetItem("Unknown")
+                rw_version_item.setToolTip("Version not analyzed")
+            
             # For V2 archives, show streaming size, otherwise show dash
             if hasattr(entry, 'streaming_size') and entry.streaming_size > 0:
                 streaming_item = QTableWidgetItem(f"{entry.streaming_size}")
@@ -173,32 +216,80 @@ class IMGEntriesTable(QTableWidget):
             self.setItem(row, 1, type_item)
             self.setItem(row, 2, size_item)
             self.setItem(row, 3, offset_item)
-            self.setItem(row, 4, streaming_item)
-            self.setItem(row, 5, comp_item)
+            self.setItem(row, 4, rw_version_item)
+            self.setItem(row, 5, streaming_item)
+            self.setItem(row, 6, comp_item)
         
         self.setSortingEnabled(True)
         self.sortByColumn(0, Qt.SortOrder.AscendingOrder)  # Sort by name initially
     
-    def apply_filter(self, filter_text=None, filter_type=None):
+    def apply_filter(self, filter_text=None, filter_type=None, filter_rw_version=None):
         """Apply filter to table entries"""
         for row in range(self.rowCount()):
             show_row = True
             
             name_item = self.item(row, 0)
             type_item = self.item(row, 1)
+            rw_version_item = self.item(row, 4)  # RW Version column
             
+            # Get the entry object to check RenderWare properties
+            entry = name_item.data(Qt.ItemDataRole.UserRole) if name_item else None
+            
+            # Text filter
             if filter_text and filter_text.lower() not in name_item.text().lower():
                 show_row = False
                 
+            # File type filter
             if filter_type and filter_type != "All" and type_item.text() != filter_type:
                 show_row = False
+                
+            # RenderWare version filter
+            if filter_rw_version and entry:
+                rw_text = rw_version_item.text() if rw_version_item else ""
+                
+                if filter_rw_version == "RenderWare Only":
+                    if not entry.is_renderware_file():
+                        show_row = False
+                elif filter_rw_version == "Non-RenderWare":
+                    if entry.is_renderware_file():
+                        show_row = False
+                elif filter_rw_version == "GTA III (3.1.0.1)":
+                    if not ("3.1.0.1" in rw_text or "GTA3" in rw_text):
+                        show_row = False
+                elif filter_rw_version == "Vice City (3.3.0.2)":
+                    if not ("3.3.0.2" in rw_text or "Vice City" in rw_text):
+                        show_row = False
+                elif filter_rw_version == "San Andreas (3.6.0.3)":
+                    if not ("3.6.0.3" in rw_text):
+                        show_row = False
+                elif filter_rw_version == "San Andreas (3.4.0.3)":
+                    if not ("3.4.0.3" in rw_text):
+                        show_row = False
+                elif filter_rw_version == "Liberty City Stories (3.5.0.0)":
+                    if not ("3.5.0.0" in rw_text or "Liberty City Stories" in rw_text):
+                        show_row = False
+                elif filter_rw_version == "Vice City Stories (3.5.0.2)":
+                    if not ("3.5.0.2" in rw_text or "Vice City Stories" in rw_text):
+                        show_row = False
+                elif filter_rw_version == "COL1 (GTA III/VC)":
+                    if not ("COL1" in rw_text):
+                        show_row = False
+                elif filter_rw_version == "COL2 (GTA SA)":
+                    if not ("COL2" in rw_text):
+                        show_row = False
+                elif filter_rw_version == "COL3 (GTA SA Advanced)":
+                    if not ("COL3" in rw_text):
+                        show_row = False
+                elif filter_rw_version == "COL4 (Extended)":
+                    if not ("COL4" in rw_text):
+                        show_row = False
                 
             self.setRowHidden(row, not show_row)
 
 
 class FilterPanel(QWidget):
     """Filter panel for IMG entries"""
-    filter_changed = pyqtSignal(str, str)
+    filter_changed = pyqtSignal(str, str, str)  # text_filter, type_filter, rw_version_filter
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -217,6 +308,15 @@ class FilterPanel(QWidget):
         self.type_combo.currentTextChanged.connect(self._filter_changed)
         type_layout.addWidget(self.type_combo)
         
+        # RenderWare version filter
+        rw_group = QGroupBox("RenderWare Version Filter")
+        rw_layout = QHBoxLayout(rw_group)
+        
+        self.rw_version_combo = QComboBox()
+        self.rw_version_combo.addItems(['All Versions', 'RenderWare Only', 'Non-RenderWare', 'GTA III (3.1.0.1)', 'Vice City (3.3.0.2)', 'San Andreas (3.6.0.3)', 'San Andreas (3.4.0.3)', 'Liberty City Stories (3.5.0.0)', 'Vice City Stories (3.5.0.2)', 'COL1 (GTA III/VC)', 'COL2 (GTA SA)', 'COL3 (GTA SA Advanced)', 'COL4 (Extended)'])
+        self.rw_version_combo.currentTextChanged.connect(self._filter_changed)
+        rw_layout.addWidget(self.rw_version_combo)
+        
         # Search filter
         search_group = QGroupBox("Search")
         search_layout = QHBoxLayout(search_group)
@@ -227,7 +327,7 @@ class FilterPanel(QWidget):
         search_layout.addWidget(self.search_edit)
         
         # Apply modern styling
-        self.type_combo.setStyleSheet("""
+        combo_style = """
             QComboBox {
                 background-color: #333;
                 color: white;
@@ -245,7 +345,9 @@ class FilterPanel(QWidget):
                 width: 15px;
                 border-left: 1px solid #555;
             }
-        """)
+        """
+        self.type_combo.setStyleSheet(combo_style)
+        self.rw_version_combo.setStyleSheet(combo_style)
         
         self.search_edit.setStyleSheet("""
             QLineEdit {
@@ -261,13 +363,15 @@ class FilterPanel(QWidget):
         """)
         
         layout.addWidget(type_group)
+        layout.addWidget(rw_group)
         layout.addWidget(search_group)
     
     def _filter_changed(self):
         """Emit signal when filter is changed"""
         filter_text = self.search_edit.text()
         filter_type = self.type_combo.currentText() if self.type_combo.currentText() != "All" else None
-        self.filter_changed.emit(filter_text, filter_type)
+        filter_rw_version = self.rw_version_combo.currentText() if self.rw_version_combo.currentText() != "All Versions" else None
+        self.filter_changed.emit(filter_text, filter_type, filter_rw_version)
 
 
 class ImgEditorTool(QWidget):
@@ -792,9 +896,9 @@ class ImgEditorTool(QWidget):
             from application.common.message_box import message_box
             message_box.info(f"The '{tool_name}' feature is not implemented yet.", "Feature Not Implemented")
     
-    def _on_filter_changed(self, filter_text, filter_type):
+    def _on_filter_changed(self, filter_text, filter_type, filter_rw_version):
         """Apply filters to the entries table"""
-        self.entries_table.apply_filter(filter_text, filter_type)
+        self.entries_table.apply_filter(filter_text, filter_type, filter_rw_version)
     
     def _on_entry_double_clicked(self, entry):
         """Handle double-click on an entry"""
