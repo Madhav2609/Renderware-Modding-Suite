@@ -4,6 +4,7 @@ Builds executable using Nuitka in standalone mode.
 """
 
 import subprocess
+import sys
 from pathlib import Path
 
 def build_executable_simple():
@@ -14,12 +15,14 @@ def build_executable_simple():
     project_root = Path(__file__).parent
     dist_dir = project_root / "dist"
     application_main = project_root / "application" / "main.py"
-    venv_python = project_root / ".venv" / "Scripts" / "python.exe"
+    
+    # Use current Python executable (works in both local venv and CI)
+    python_exe = sys.executable
     icon_file = project_root / "icon.ico"
 
     # Nuitka command
     nuitka_cmd = [
-        str(venv_python), "-m", "nuitka",
+        str(python_exe), "-m", "nuitka",
         "--standalone",                   # Enable standalone mode
         "--windows-console-mode=disable", # Disable console window
         f"--output-dir={dist_dir}",       # Output directory

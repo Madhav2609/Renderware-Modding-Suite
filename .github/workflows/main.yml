@@ -25,20 +25,16 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install PyQt6 darkdetect pyinstaller
+          pip install -r requirements.txt
+          pip install nuitka
 
-      - name: Build executable with PyInstaller
+      - name: Build executable with Nuitka
         run: |
-          pyinstaller --noconfirm --onedir --windowed --name "RenderwareModdingSuite" `
-          --hidden-import=PyQt6.QtCore `
-          --hidden-import=PyQt6.QtGui `
-          --hidden-import=PyQt6.QtWidgets `
-          --hidden-import=darkdetect `
-          application/main.py
+          python build_simple.py
 
       - name: Archive the build artifact
         run: |
-          Compress-Archive -Path dist/RenderwareModdingSuite -DestinationPath RenderwareModdingSuite-Windows.zip
+          Compress-Archive -Path dist/main.dist -DestinationPath RenderwareModdingSuite-Windows.zip
 
       - name: Update Latest Release
         uses: softprops/action-gh-release@v1
