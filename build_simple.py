@@ -8,7 +8,7 @@ from pathlib import Path
 
 def build_executable_simple():
     """Build the executable using Nuitka - standalone mode"""
-    print("🔨 Building Renderware Modding Suite Executable with Nuitka (Standalone Mode)...")
+    print(" Building Renderware Modding Suite Executable with Nuitka (Standalone Mode)...")
 
     # Define paths
     project_root = Path(__file__).parent
@@ -31,23 +31,23 @@ def build_executable_simple():
         str(application_main)             # Main entry point
     ]
 
-    print(f"📦 Running Nuitka command: {' '.join(nuitka_cmd)}")
+    print(f" Running Nuitka command: {' '.join(nuitka_cmd)}")
     
     try:
         # Run the Nuitka command with real-time output
         result = subprocess.run(nuitka_cmd, check=True, text=True)
-        print("✅ Nuitka build completed successfully!")
+        print(" Nuitka build completed successfully!")
         return True
     except subprocess.CalledProcessError as e:
-        print(f"❌ Nuitka build failed with error code {e.returncode}")
+        print(f" Nuitka build failed with error code {e.returncode}")
         return False
     except FileNotFoundError:
-        print("❌ Python executable not found. Make sure the virtual environment is set up correctly.")
+        print(" Python executable not found. Make sure the virtual environment is set up correctly.")
         return False
 
 
 if __name__ == "__main__":
     if build_executable_simple():
-        print("\n🎉 Build completed successfully!")
+        print("\n Build completed successfully!")
     else:
-        print("\n❌ Build failed")
+        print("\n Build failed")
