@@ -53,6 +53,10 @@ class IMGController(QObject):
             if len(self.recent_files) > self.max_recent_files:
                 self.recent_files = self.recent_files[:self.max_recent_files]
             
+            # Analyze RenderWare versions for all entries
+            if self.current_img and self.current_img.entries:
+                self.current_img.analyze_all_entries_rw_versions()
+            
             # Emit signal with the loaded archive
             self.img_loaded.emit(self.current_img)
             
@@ -62,6 +66,30 @@ class IMGController(QObject):
             return True, f"Successfully opened {Path(file_path).name}"
         except Exception as e:
             return False, f"Error opening IMG file: {str(e)}"
+    
+    def get_rw_version_summary(self):
+        """Get RenderWare version summary for the current archive."""
+        if not self.current_img:
+            return None
+        return self.current_img.get_rw_version_summary()
+    
+    def analyze_entry_rw_version(self, entry):
+        """Analyze RenderWare version for a specific entry."""
+        if not self.current_img:
+            return
+        self.current_img.analyze_entry_rw_version(entry)
+    
+    def get_entries_by_rw_version(self, version_value):
+        """Get entries filtered by RenderWare version."""
+        if not self.current_img:
+            return []
+        return self.current_img.get_entries_by_rw_version(version_value)
+    
+    def get_entries_by_format(self, format_type):
+        """Get entries filtered by format type."""
+        if not self.current_img:
+            return []
+        return self.current_img.get_entries_by_format(format_type)
     
     def open_multiple(self, file_paths):
         """Opens multiple IMG archives (only the first one is active)."""

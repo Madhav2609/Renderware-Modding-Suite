@@ -25,20 +25,19 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install PyQt6 darkdetect pyinstaller
+          pip install -r requirements.txt
+          pip install nuitka
 
-      - name: Build executable with PyInstaller
+      - name: Build executable with Nuitka
         run: |
-          pyinstaller --noconfirm --onedir --windowed --name "RenderwareModdingSuite" `
-          --hidden-import=PyQt6.QtCore `
-          --hidden-import=PyQt6.QtGui `
-          --hidden-import=PyQt6.QtWidgets `
-          --hidden-import=darkdetect `
-          application/main.py
+          python build_simple.py
 
       - name: Archive the build artifact
         run: |
-          Compress-Archive -Path dist/RenderwareModdingSuite -DestinationPath RenderwareModdingSuite-Windows.zip
+          # Rename the main.dist folder to the desired name
+          Rename-Item -Path "dist/main.dist" -NewName "RW GTA 3D Era Modding Suite"
+          # Create the zip archive with the entire folder
+          Compress-Archive -Path "dist/RW GTA 3D Era Modding Suite" -DestinationPath RenderwareModdingSuite-Windows.zip
 
       - name: Update Latest Release
         uses: softprops/action-gh-release@v1
@@ -46,7 +45,7 @@ jobs:
           tag_name: latest # Use a fixed tag for the "latest" release
           name: "Latest Build (from main branch)"
           body: "This release contains the latest build from the main branch. Assets are automatically updated on every commit."
-          prerelease: true
+          prerelease: false
           files: ./RenderwareModdingSuite-Windows.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

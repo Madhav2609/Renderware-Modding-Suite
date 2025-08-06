@@ -182,7 +182,8 @@ def _on_img_loaded(self, img_archive):
     """Handle IMG loaded event"""
     # Update file info panel
     info = self.img_editor.get_img_info()
-    self.file_info_panel.update_info(info)
+    rw_summary = self.img_editor.get_rw_version_summary()
+    self.file_info_panel.update_info(info, rw_summary)
     
     # Populate table with entries
     self.entries_table.populate_entries(img_archive.entries)
@@ -199,7 +200,8 @@ def _on_entries_updated(self, entries):
     """Handle entries updated event"""
     # Update file info panel
     info = self.img_editor.get_img_info()
-    self.file_info_panel.update_info(info)
+    rw_summary = self.img_editor.get_rw_version_summary()
+    self.file_info_panel.update_info(info, rw_summary)
     
     # Refresh entries table
     self.entries_table.populate_entries(entries)
