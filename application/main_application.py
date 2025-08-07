@@ -9,7 +9,7 @@ from pathlib import Path
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                             QHBoxLayout, QSplitter, QMenuBar, QMenu, QMessageBox)
 from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QAction, QIcon
+from PyQt6.QtGui import QAction, QIcon, QFont
 
 # Import modular components
 from application.styles import ModernDarkTheme
@@ -312,6 +312,10 @@ def main():
     # Apply modern dark theme
     theme = ModernDarkTheme()
     app.setStyleSheet(theme.get_main_stylesheet())
+    
+    # Set a professional font, e.g., 'Fira Code', 'Consolas', or 'JetBrains Mono'
+    professional_font = QFont("Fira Code", 10)
+    app.setFont(professional_font)
     
     # Create and show main window
     window = RenderwareModdingSuite()

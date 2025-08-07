@@ -19,53 +19,160 @@ from .core import (
     Import_Export,
     Entries_and_Selection
 )
+from .core.File_Operations import ArchiveManager
 
 class IMGController(QObject):
     """
     Main controller class that connects the IMG Editor UI with backend functionality.
     Acts as a controller between the UI (View) and the data model (Model).
+    Supports multiple IMG archives with tab-based management.
     """
     # Define signals for UI updates
     img_loaded = pyqtSignal(object)  # Signal emitted when an IMG file is loaded
-    img_closed = pyqtSignal()  # Signal emitted when an IMG file is closed
+    img_closed = pyqtSignal(str)  # Signal emitted when an IMG file is closed (file_path)
     entries_updated = pyqtSignal(list)  # Signal emitted when entries are updated
     operation_progress = pyqtSignal(int, str)  # Signal for long operations: progress, message
     operation_completed = pyqtSignal(bool, str)  # Signal for operation completion: success, message
+    archive_switched = pyqtSignal(object)  # Signal when active archive changes
     
     def __init__(self):
         super().__init__()
-        self.current_img = None  # Current IMG archive being edited
+        self.archive_manager = ArchiveManager()
         self.selected_entries = []  # List of currently selected entries
         self.recent_files = []  # List of recently opened files
         self.max_recent_files = 10  # Maximum number of recent files to track
     
-    # File Operations
+    # Archive Management Methods
     
-    def open_img(self, file_path):
-        """Opens an IMG archive from the specified path."""
+    def open_archive(self, file_path):
+        """Opens a single IMG archive from the specified path."""
         try:
-            self.current_img = File_Operations.open_archive(file_path)
+            # Check if already open
+            if file_path in self.archive_manager.open_archives:
+                # Switch to existing archive
+                self.archive_manager.set_active_archive(file_path)
+                active_archive = self.archive_manager.get_active_archive()
+                self.archive_switched.emit(active_archive)
+                return True, f"Switched to already open archive: {Path(file_path).name}"
+            
+            # Open new archive
+            img_archive = File_Operations.open_archive(file_path, self.archive_manager)
             
             # Add to recent files
-            if file_path in self.recent_files:
-                self.recent_files.remove(file_path)
-            self.recent_files.insert(0, file_path)
-            if len(self.recent_files) > self.max_recent_files:
-                self.recent_files = self.recent_files[:self.max_recent_files]
+            self._add_to_recent_files(file_path)
             
             # Analyze RenderWare versions for all entries
-            if self.current_img and self.current_img.entries:
-                self.current_img.analyze_all_entries_rw_versions()
+            if img_archive and hasattr(img_archive, 'entries') and img_archive.entries:
+                img_archive.analyze_all_entries_rw_versions()
             
             # Emit signal with the loaded archive
-            self.img_loaded.emit(self.current_img)
-            
-            # Emit signal with entries for the UI
-            self.entries_updated.emit(self.current_img.entries)
+            self.img_loaded.emit(img_archive)
             
             return True, f"Successfully opened {Path(file_path).name}"
+            
         except Exception as e:
             return False, f"Error opening IMG file: {str(e)}"
+    
+    def open_multiple_archives(self, file_paths):
+        """Opens multiple IMG archives."""
+        if not file_paths:
+            return False, "No files selected"
+        
+        try:
+            success_count, failed_files, error_messages = File_Operations.open_multiple_archives(
+                file_paths, self.archive_manager
+            )
+            
+            # Add successful files to recent files
+            for file_path in file_paths:
+                if file_path not in failed_files:
+                    self._add_to_recent_files(file_path)
+            
+            # Analyze RenderWare versions for all successfully opened archives
+            for file_path in self.archive_manager.get_archive_paths():
+                img_archive = self.archive_manager.get_archive(file_path)
+                if img_archive and hasattr(img_archive, 'entries') and img_archive.entries:
+                    if not hasattr(img_archive, '_rw_analyzed'):
+                        img_archive.analyze_all_entries_rw_versions()
+                        img_archive._rw_analyzed = True
+            
+            # Emit signals for successfully opened archives
+            for file_path in file_paths:
+                if file_path not in failed_files:
+                    img_archive = self.archive_manager.get_archive(file_path)
+                    if img_archive:
+                        self.img_loaded.emit(img_archive)
+            
+            # Prepare result message
+            if success_count == len(file_paths):
+                return True, f"Successfully opened {success_count} archive(s)"
+            elif success_count > 0:
+                failed_names = [Path(f).name for f in failed_files]
+                return True, f"Opened {success_count}/{len(file_paths)} archives. Failed: {', '.join(failed_names)}"
+            else:
+                return False, f"Failed to open any archives: {'; '.join(error_messages)}"
+                
+        except Exception as e:
+            return False, f"Error opening archives: {str(e)}"
+    
+    def close_archive(self, file_path):
+        """Closes a specific IMG archive."""
+        if not file_path:
+            return False, "Invalid file path: None"
+            
+        if file_path in self.archive_manager.open_archives:
+            img_archive = self.archive_manager.get_archive(file_path)
+            
+            # Close the archive
+            File_Operations.close_archive(img_archive, self.archive_manager)
+            
+            # Emit signal
+            self.img_closed.emit(file_path)
+            
+            return True, f"Closed {Path(file_path).name}"
+        else:
+            return False, f"Archive not found: {Path(file_path).name}"
+    
+    def close_all_archives(self):
+        """Closes all open IMG archives."""
+        closed_count = len(self.archive_manager.open_archives)
+        self.archive_manager.close_all_archives()
+        self.img_closed.emit("")  # Empty string indicates all closed
+        return True, f"Closed {closed_count} archive(s)"
+    
+    def switch_active_archive(self, file_path):
+        """Switches the active archive."""
+        if self.archive_manager.set_active_archive(file_path):
+            active_archive = self.archive_manager.get_active_archive()
+            self.archive_switched.emit(active_archive)
+            return True
+        return False
+    
+    def get_active_archive(self):
+        """Get the currently active archive."""
+        return self.archive_manager.get_active_archive()
+    
+    def get_open_archives(self):
+        """Get list of all open archive paths."""
+        return self.archive_manager.get_archive_paths()
+    
+    def get_archive_count(self):
+        """Get the number of open archives."""
+        return self.archive_manager.get_archive_count()
+    
+    def _add_to_recent_files(self, file_path):
+        """Add a file to recent files list."""
+        if file_path in self.recent_files:
+            self.recent_files.remove(file_path)
+        self.recent_files.insert(0, file_path)
+        if len(self.recent_files) > self.max_recent_files:
+            self.recent_files = self.recent_files[:self.max_recent_files]
+    
+    # Legacy methods for backward compatibility
+    
+    def open_img(self, file_path):
+        """Legacy method - opens an IMG archive from the specified path."""
+        return self.open_archive(file_path)
     
     def get_rw_version_summary(self):
         """Get RenderWare version summary for the current archive."""
@@ -91,17 +198,6 @@ class IMGController(QObject):
             return []
         return self.current_img.get_entries_by_format(format_type)
     
-    def open_multiple(self, file_paths):
-        """Opens multiple IMG archives (only the first one is active)."""
-        if not file_paths:
-            return False, "No files selected"
-        
-        # Open the first file
-        success, message = self.open_img(file_paths[0])
-        
-        # TODO: Handle multiple files - implement this feature later
-        
-        return success, message
     
     def create_new_img(self, file_path, version='V2'):
         """Creates a new empty IMG archive."""
@@ -113,28 +209,6 @@ class IMGController(QObject):
         except Exception as e:
             return False, f"Error creating IMG file: {str(e)}"
     
-    def save_img(self):
-        """Saves the current IMG archive."""
-        if not self.current_img:
-            return False, "No IMG file is currently open"
-        
-        try:
-            File_Operations.save_archive(self.current_img)
-            return True, f"Saved {Path(self.current_img.file_path).name}"
-        except Exception as e:
-            return False, f"Error saving IMG file: {str(e)}"
-    
-    def save_img_as(self, file_path):
-        """Saves the current IMG archive to a new path."""
-        if not self.current_img:
-            return False, "No IMG file is currently open"
-        
-        try:
-            File_Operations.save_archive(self.current_img, file_path)
-            self.current_img.file_path = file_path
-            return True, f"Saved as {Path(file_path).name}"
-        except Exception as e:
-            return False, f"Error saving IMG file: {str(e)}"
     
     def close_img(self):
         """Closes the current IMG archive."""
@@ -145,15 +219,7 @@ class IMGController(QObject):
         self.selected_entries = []
         self.img_closed.emit()
         return True, "IMG file closed"
-    
-    def reload_img(self):
-        """Reloads the current IMG archive from disk."""
-        if not self.current_img or not self.current_img.file_path:
-            return False, "No IMG file is currently open"
         
-        file_path = self.current_img.file_path
-        return self.open_img(file_path)
-    
     # Entry Management
     
     def get_entries(self, filter_text=None, filter_type=None):

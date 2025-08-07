@@ -8,10 +8,12 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                             QTreeWidgetItem, QLineEdit, QComboBox, QProgressBar,
                             QScrollArea, QSizePolicy, QTableWidget, QTableWidgetItem,
                             QHeaderView, QFileDialog, QGridLayout, QTabWidget,
-                            QToolButton, QMenu)
+                            QToolButton, QMenu, QFrame)
 from PyQt6.QtCore import Qt, pyqtSignal
+from pathlib import Path
 
 from application.common.message_box import message_box
+from .img_controller import IMGController
 
 
 class IMGFileInfoPanel(QGroupBox):
@@ -296,9 +298,10 @@ class FilterPanel(QWidget):
         self._setup_ui()
     
     def _setup_ui(self):
-        layout = QVBoxLayout(self)
+        layout = QHBoxLayout(self)
         layout.setContentsMargins(8, 8, 8, 8)
-        
+        layout.setSpacing(15)
+
         # File type filter
         type_group = QGroupBox("File Type Filter")
         type_layout = QHBoxLayout(type_group)
@@ -374,110 +377,624 @@ class FilterPanel(QWidget):
         self.filter_changed.emit(filter_text, filter_type, filter_rw_version)
 
 
+class IMGArchiveTab(QWidget):
+    """Individual tab for an IMG archive"""
+    
+    # Signals
+    archive_modified = pyqtSignal(str)  # Signal when archive is modified
+    entries_selected = pyqtSignal(list)  # Signal when entries are selected
+    action_requested = pyqtSignal(str, object)  # Signal for requesting actions from parent
+    
+    def __init__(self, img_archive, parent=None):
+        super().__init__(parent)
+        self.img_archive = img_archive
+        self.parent_tool = parent  # Reference to parent ImgEditorTool
+        self.setup_ui()
+        self.update_display()
+    
+    def setup_ui(self):
+        """Setup UI for individual archive tab"""
+        layout = QVBoxLayout(self)
+        
+        # Filter panel
+        self.filter_panel = FilterPanel()
+        self.filter_panel.filter_changed.connect(self._on_filter_changed)
+        layout.addWidget(self.filter_panel)
+        
+        # Entries table
+        self.entries_table = IMGEntriesTable()
+        self.entries_table.entry_double_clicked.connect(self._on_entry_double_clicked)
+        self.entries_table.entry_selected.connect(self._on_entry_selected)
+        layout.addWidget(self.entries_table)
+        
+        # Action buttons
+        btn_layout = QHBoxLayout()
+        
+        add_btn = QPushButton("➕ Add")
+        add_btn.clicked.connect(self._add_files)
+        extract_btn = QPushButton("📤 Extract")
+        extract_btn.clicked.connect(self._extract_selected)
+        delete_btn = QPushButton("🗑️ Delete")
+        delete_btn.clicked.connect(self._delete_selected)
+        
+        btn_layout.addWidget(add_btn)
+        btn_layout.addWidget(extract_btn)
+        btn_layout.addWidget(delete_btn)
+        
+        layout.addLayout(btn_layout)
+    
+    def update_display(self):
+        """Update the display with current archive data"""
+        if not self.img_archive:
+            return
+        
+        # Populate table with entries
+        if hasattr(self.img_archive, 'entries') and self.img_archive.entries:
+            self.entries_table.populate_entries(self.img_archive.entries)
+    
+    def get_archive_info(self):
+        """Get archive information for display"""
+        if not self.img_archive:
+            return None
+        
+        total_size = sum(entry.actual_size for entry in self.img_archive.entries) if hasattr(self.img_archive, 'entries') else 0
+        
+        return {
+            'path': self.img_archive.file_path or 'Unknown',
+            'version': getattr(self.img_archive, 'version', 'Unknown'),
+            'entry_count': len(self.img_archive.entries) if hasattr(self.img_archive, 'entries') else 0,
+            'total_size': f"{total_size:,} bytes",
+            'modified': "Yes" if getattr(self.img_archive, 'modified', False) else "No"
+        }
+    
+    def get_selected_entries(self):
+        """Get currently selected entries"""
+        selected_entries = []
+        
+        # Get all selected rows
+        for index in self.entries_table.selectedIndexes():
+            if index.column() == 0:  # Only count each row once
+                entry = self.entries_table.item(index.row(), 0).data(Qt.ItemDataRole.UserRole)
+                if entry:
+                    selected_entries.append(entry)
+        
+        return selected_entries
+    
+    def _on_filter_changed(self, filter_text, filter_type, filter_rw_version):
+        """Handle filter changes"""
+        self.entries_table.apply_filter(filter_text, filter_type, filter_rw_version)
+    
+    def _on_entry_double_clicked(self, entry):
+        """Handle entry double-click"""
+        # Implementation for entry preview/edit
+        entry_info = f"Name: {entry.name}\n"
+        entry_info += f"Size: {entry.actual_size:,} bytes\n"
+        entry_info += f"Offset: Sector {entry.offset}"
+        message_box.info(entry_info, "Entry Details", self)
+    
+    def _on_entry_selected(self, entries):
+        """Handle entry selection"""
+        self.entries_selected.emit(entries)
+    
+    # Tab-specific action methods
+    def _add_files(self):
+        """Add files to this archive"""
+        if self.parent_tool:
+            # Switch to this tab's archive and delegate to parent tool
+            if self.img_archive.file_path:
+                self.parent_tool.switch_to_archive(self.img_archive.file_path)
+            self.parent_tool.handle_img_tool("Add Files")
+        else:
+            self.action_requested.emit("Add Files", self.img_archive)
+    
+    def _extract_selected(self):
+        """Extract selected entries from this archive"""
+        selected_entries = self.get_selected_entries()
+        if not selected_entries:
+            message_box.warning("Please select entries to extract.", "No Selection", self)
+            return
+        
+        if self.parent_tool:
+            # Switch to this tab's archive and delegate to parent tool
+            if self.img_archive.file_path:
+                self.parent_tool.switch_to_archive(self.img_archive.file_path)
+            self.parent_tool.handle_img_tool("Extract Selected")
+        else:
+            self.action_requested.emit("Extract Selected", {
+                'archive': self.img_archive,
+                'entries': selected_entries
+            })
+    
+    def _delete_selected(self):
+        """Delete selected entries from this archive"""
+        selected_entries = self.get_selected_entries()
+        if not selected_entries:
+            message_box.warning("Please select entries to delete.", "No Selection", self)
+            return
+        
+        if self.parent_tool:
+            # Switch to this tab's archive and delegate to parent tool
+            if self.img_archive.file_path:
+                self.parent_tool.switch_to_archive(self.img_archive.file_path)
+            self.parent_tool.handle_img_tool("Delete Selected")
+        else:
+            self.action_requested.emit("Delete Selected", {
+                'archive': self.img_archive,
+                'entries': selected_entries
+            })
+    
+
+
 class ImgEditorTool(QWidget):
-    """IMG Editor tool interface"""
+    """IMG Editor tool interface with multi-archive tab support"""
     
     # Signals for tool actions
     tool_action = pyqtSignal(str, str)  # action_name, parameters
-    
-    # Import UI interaction handlers
-    from .ui_interaction_handlers import (_open_img_file, _create_new_img, _save_img, 
-                                  _save_img_as, _close_img, _add_files, 
-                                  _extract_selected, _delete_selected,
-                                  _on_img_loaded, _on_img_closed, _on_entries_updated)
+    archive_switched = pyqtSignal(object)  # Signal when active archive changes
     
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.img_file = None
+        self.img_controller = IMGController()
+        self.current_archive_tab = None
+        
+        # Create compatibility layer for UI interaction handlers
+        self.img_editor = self._create_img_editor_adapter()
+        
+        # Import UI interaction handlers
+        self._import_ui_handlers()
+        
+        # Connect controller signals
+        self.img_controller.img_loaded.connect(self._on_img_loaded)
+        self.img_controller.img_closed.connect(self._on_img_closed)
+        self.img_controller.archive_switched.connect(self._on_archive_switched)
+        
         self.setup_ui()
     
+    def _create_img_editor_adapter(self):
+        """Create an adapter object that provides the interface expected by UI handlers"""
+        class IMGEditorAdapter:
+            def __init__(self, tool):
+                self.tool = tool
+            
+            def open_img(self, file_path):
+                return self.tool.open_archive(file_path)
+            
+            def create_new_img(self, file_path, version):
+                return self.tool.img_controller.create_new_img(file_path, version)
+            
+            def is_img_open(self):
+                return self.tool.img_controller.get_archive_count() > 0
+            
+            def close_img(self):
+                return self.tool.img_controller.close_all_archives()
+            
+            def add_files(self, file_paths):
+                # This would need to be implemented in the controller
+                return False, "Add files not implemented in controller yet"
+            
+            def extract_selected(self, output_dir):
+                # This would need to be implemented in the controller
+                return False, "Extract selected not implemented in controller yet"
+            
+            def delete_selected(self):
+                # This would need to be implemented in the controller
+                return False, "Delete selected not implemented in controller yet"
+            
+            def get_img_info(self):
+                archive = self.tool.get_current_archive()
+                if archive and self.tool.current_archive_tab:
+                    return self.tool.current_archive_tab.get_archive_info()
+                return None
+            
+            def get_rw_version_summary(self):
+                # This would need to be implemented
+                return None
+            
+            @property
+            def selected_entries(self):
+                return self.tool.get_selected_entries()
+        
+        return IMGEditorAdapter(self)
+    
+    # Import UI interaction handlers - make them methods of this class
+    def _import_ui_handlers(self):
+        """Import and bind UI interaction handlers"""
+        try:
+            from .ui_interaction_handlers import (_open_img_file, _create_new_img,
+                                           _close_img, _add_files, 
+                                          _extract_selected, _delete_selected,
+                                          _on_img_loaded, _on_img_closed, _on_entries_updated)
+            
+            # Bind imported functions as methods of this class
+            self._open_img_file = _open_img_file.__get__(self, self.__class__)
+            self._create_new_img = _create_new_img.__get__(self, self.__class__)
+            self._close_img = _close_img.__get__(self, self.__class__)
+            self._add_files = _add_files.__get__(self, self.__class__)
+            self._extract_selected = _extract_selected.__get__(self, self.__class__)
+            self._delete_selected = _delete_selected.__get__(self, self.__class__)
+            self._on_img_loaded_handler = _on_img_loaded.__get__(self, self.__class__)
+            self._on_img_closed_handler = _on_img_closed.__get__(self, self.__class__)
+            self._on_entries_updated_handler = _on_entries_updated.__get__(self, self.__class__)
+            
+        except ImportError:
+            # If ui_interaction_handlers doesn't exist, use fallback methods
+            self._add_files = self._fallback_add_files
+            self._extract_selected = self._fallback_extract_selected
+            self._delete_selected = self._fallback_delete_selected
+            self._create_new_img = self._fallback_create_new_img
+    
+    def _fallback_add_files(self):
+        """Fallback method for adding files"""
+        message_box.info("Add files feature is not implemented yet.", "Feature Not Implemented", self)
+    
+    def _fallback_extract_selected(self):
+        """Fallback method for extracting selected entries"""
+        selected_entries = self.get_selected_entries()
+        if not selected_entries:
+            message_box.warning("Please select entries to extract.", "No Selection", self)
+            return
+        message_box.info(f"Extract feature is not implemented yet. {len(selected_entries)} entries selected.", "Feature Not Implemented", self)
+    
+    def _fallback_delete_selected(self):
+        """Fallback method for deleting selected entries"""
+        selected_entries = self.get_selected_entries()
+        if not selected_entries:
+            message_box.warning("Please select entries to delete.", "No Selection", self)
+            return
+        message_box.info(f"Delete feature is not implemented yet. {len(selected_entries)} entries selected.", "Feature Not Implemented", self)
+    
+    def _fallback_create_new_img(self):
+        """Fallback method for creating new IMG"""
+        message_box.info("Create new IMG feature is not implemented yet.", "Feature Not Implemented", self)
+    
     def setup_ui(self):
-        """Setup the IMG Editor interface"""
+        """Setup the IMG Editor interface with tabbed archives"""
+        # Main layout
+        main_layout = QVBoxLayout()
+        
         # IMG Editor header
         header_label = QLabel("📁 IMG Editor")
         header_label.setStyleSheet("font-weight: bold; font-size: 16px; padding: 10px;")
-        
-        # Main layout
-        main_layout = QVBoxLayout()
         main_layout.addWidget(header_label)
         
         # Main splitter for IMG content
         splitter = QSplitter(Qt.Orientation.Horizontal)
         
-        # Left panel: IMG file tree
+        # Left panel: Tabbed archives
         left_panel = self.create_left_panel()
         
-        # Right panel: Entry details/preview and tools
+        # Right panel: Tools and information
         right_panel = self.create_right_panel()
         
         # Add panels to splitter
         splitter.addWidget(left_panel)
         splitter.addWidget(right_panel)
         
-        # Set initial sizes, adjust these values as needed
-        splitter.setSizes([500, 300])
+        # Set initial sizes
+        splitter.setSizes([500, 450])
+        splitter.setStretchFactor(0, 1)
+        splitter.setStretchFactor(1, 0)
         
-        # Set stretch factors: 1 for panels that should resize, 0 for fixed size
-        splitter.setStretchFactor(0, 1)  # Left panel can stretch
-        splitter.setStretchFactor(1, 1)  # Right panel can stretch equally
-        
-        # Add the splitter to the main layout with a stretch factor of 1
-        # This makes the splitter expand to fill available vertical space.
         main_layout.addWidget(splitter, 1)
         
-        # Make sure the widget stretches to fill available space
-        self.setMinimumHeight(400)  # Increased minimum height for stability
-        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        # Status info
+        self.create_status_info(main_layout)
         
         self.setLayout(main_layout)
+        self.setMinimumHeight(400)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
     
     def create_left_panel(self):
-        """Create the left panel with file table"""
+        """Create the left panel with tabbed archives"""
         left_panel = QWidget()
-        left_layout = QVBoxLayout()
+        left_layout = QVBoxLayout(left_panel)
         
-        # Add filter panel at top
-        self.filter_panel = FilterPanel()
-        self.filter_panel.filter_changed.connect(self._on_filter_changed)
-        left_layout.addWidget(self.filter_panel)
+        # Archive tabs
+        self.archive_tabs = QTabWidget()
+        self.archive_tabs.setTabsClosable(True)
+        self.archive_tabs.setMovable(True)
+        self.archive_tabs.tabCloseRequested.connect(self._close_archive_tab)
+        self.archive_tabs.currentChanged.connect(self._on_tab_changed)
         
-        # Add IMG entries table
-        self.entries_table = IMGEntriesTable()
-        self.entries_table.entry_double_clicked.connect(self._on_entry_double_clicked)
-        self.entries_table.entry_selected.connect(self._on_entry_selected)
-        left_layout.addWidget(self.entries_table)
+        # Set tab styling
+        self.archive_tabs.setStyleSheet("""
+            QTabWidget::pane {
+                border: 1px solid #444;
+                border-radius: 4px;
+                background-color: #2d2d2d;
+            }
+            QTabBar::tab {
+                background-color: #333;
+                color: #ccc;
+                min-width: 100px;
+                max-width: 200px;
+                padding: 8px 12px;
+                margin-right: 2px;
+                border: 1px solid #444;
+                border-bottom: none;
+                border-top-left-radius: 4px;
+                border-top-right-radius: 4px;
+            }
+            QTabBar::tab:selected {
+                background-color: #2d2d2d;
+                color: white;
+                border-bottom: 2px solid #007acc;
+            }
+            QTabBar::tab:hover {
+                background-color: #3a3a3a;
+            }
+        """)
         
-        # Action buttons
-        btn_layout = QHBoxLayout()
+        # Empty state widget
+        self.empty_state = self.create_empty_state()
         
-        add_btn = QPushButton("➕ Add")
-        add_btn.clicked.connect(lambda: self.handle_img_tool("Add Files"))
-        extract_btn = QPushButton("📤 Extract")
-        extract_btn.clicked.connect(lambda: self.handle_img_tool("Extract Selected"))
-        delete_btn = QPushButton("🗑️ Delete")
-        delete_btn.clicked.connect(lambda: self.handle_img_tool("Delete Selected"))
+        # Add tabs to layout
+        left_layout.addWidget(self.archive_tabs)
         
-        btn_layout.addWidget(add_btn)
-        btn_layout.addWidget(extract_btn)
-        btn_layout.addWidget(delete_btn)
-        
-        left_layout.addLayout(btn_layout)
-        left_panel.setLayout(left_layout)
+        # Initially show empty state
+        self.show_empty_state()
         
         return left_panel
     
+    def create_empty_state(self):
+        """Create empty state widget when no archives are open"""
+        empty_widget = QFrame()
+        empty_widget.setFrameStyle(QFrame.Shape.StyledPanel)
+        empty_widget.setStyleSheet("""
+            QFrame {
+                background-color: #2d2d2d;
+                border: 2px dashed #555;
+                border-radius: 8px;
+            }
+            QLabel {
+                color: #888;
+                font-size: 14px;
+            }
+        """)
+        
+        layout = QVBoxLayout(empty_widget)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        
+        icon_label = QLabel("📁")
+        icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        icon_label.setStyleSheet("font-size: 48px; color: #555;")
+        
+        text_label = QLabel("No IMG archives open")
+        text_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        text_label.setStyleSheet("font-size: 16px; color: #888; margin: 10px;")
+        
+        hint_label = QLabel("Use 'Open IMG' or 'Open Multiple' to load archives")
+        hint_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        hint_label.setStyleSheet("font-size: 12px; color: #666; margin: 5px;")
+        
+        layout.addWidget(icon_label)
+        layout.addWidget(text_label)
+        layout.addWidget(hint_label)
+        
+        return empty_widget
+    
+    def show_empty_state(self):
+        """Show empty state when no archives are open"""
+        if self.archive_tabs.count() == 0:
+            # Clear the tab widget and add empty state
+            self.archive_tabs.clear()
+            self.archive_tabs.addTab(self.empty_state, "No Archives")
+            self.archive_tabs.setTabsClosable(False)
+    
+    def hide_empty_state(self):
+        """Hide empty state when archives are opened"""
+        if self.archive_tabs.count() == 1 and self.archive_tabs.widget(0) == self.empty_state:
+            self.archive_tabs.clear()
+            self.archive_tabs.setTabsClosable(True)
+    
+    def create_status_info(self, parent_layout):
+        """Create status information at bottom"""
+        self.status_label = QLabel("Ready | No archives open")
+        self.status_label.setStyleSheet("""
+            QLabel {
+                background-color: #333;
+                color: #ccc;
+                padding: 5px 10px;
+                border-top: 1px solid #555;
+                font-size: 11px;
+            }
+        """)
+        parent_layout.addWidget(self.status_label)
+    
+    def update_status(self):
+        """Update status information"""
+        archive_count = self.img_controller.get_archive_count()
+        if archive_count == 0:
+            self.status_label.setText("Ready | No archives open")
+        else:
+            active_archive = self.img_controller.get_active_archive()
+            if active_archive:
+                archive_name = Path(active_archive.file_path).name if active_archive.file_path else "Unknown"
+                entry_count = len(active_archive.entries) if hasattr(active_archive, 'entries') else 0
+                self.status_label.setText(f"Active: {archive_name} | {entry_count} entries | {archive_count} archive(s) open")
+            else:
+                self.status_label.setText(f"Ready | {archive_count} archive(s) open")
+    
+    def add_archive_tab(self, img_archive):
+        """Add a new archive tab"""
+        if not img_archive or not img_archive.file_path:
+            return
+        
+        # Hide empty state if it's showing
+        self.hide_empty_state()
+        
+        # Create tab with parent reference
+        archive_tab = IMGArchiveTab(img_archive, parent=self)
+        archive_tab.entries_selected.connect(self._on_entries_selected)
+        archive_tab.archive_modified.connect(self._on_archive_modified)
+        archive_tab.action_requested.connect(self._on_tab_action_requested)
+        
+        # Get tab title
+        tab_title = Path(img_archive.file_path).name
+        
+        # Add tab
+        tab_index = self.archive_tabs.addTab(archive_tab, tab_title)
+        
+        # Set as current tab
+        self.archive_tabs.setCurrentIndex(tab_index)
+        self.current_archive_tab = archive_tab
+        
+        # Update archive manager
+        self.img_controller.switch_active_archive(img_archive.file_path)
+        
+        # Update status and info panel
+        self.update_status()
+        self.update_info_panel()
+        
+        return archive_tab
+    
+    def open_archive(self, file_path):
+        """Open a single archive"""
+        return self.img_controller.open_archive(file_path)
+    
+    def open_multiple_archives(self, file_paths):
+        """Open multiple archives"""
+        return self.img_controller.open_multiple_archives(file_paths)
+    
+    def switch_to_archive(self, file_path):
+        """Switch to a specific archive tab"""
+        if not file_path:
+            return False
+            
+        for i in range(self.archive_tabs.count()):
+            widget = self.archive_tabs.widget(i)
+            if isinstance(widget, IMGArchiveTab) and widget.img_archive.file_path == file_path:
+                self.archive_tabs.setCurrentIndex(i)
+                return True
+        return False
+    
+    def _close_archive_tab(self, index):
+        """Close an archive tab"""
+        widget = self.archive_tabs.widget(index)
+        if isinstance(widget, IMGArchiveTab):
+            # Remove from controller
+            file_path = widget.img_archive.file_path
+            if file_path:  # Only try to close if file_path is not None
+                self.img_controller.close_archive(file_path)
+            
+            # Remove tab
+            self.archive_tabs.removeTab(index)
+            
+            # Show empty state if no tabs left
+            if self.archive_tabs.count() == 0:
+                self.show_empty_state()
+            
+            # Update status
+            self.update_status()
+            self.update_info_panel()
+    
+    def _on_tab_changed(self, index):
+        """Handle tab change"""
+        widget = self.archive_tabs.widget(index)
+        if isinstance(widget, IMGArchiveTab):
+            self.current_archive_tab = widget
+            # Only switch if file_path is not None
+            if widget.img_archive.file_path:
+                self.img_controller.switch_active_archive(widget.img_archive.file_path)
+            self.update_status()
+            self.update_info_panel()
+    
+    def _on_img_loaded(self, img_archive):
+        """Handle when an archive is loaded by the controller"""
+        self.add_archive_tab(img_archive)
+    
+    def _on_img_closed(self, file_path):
+        """Handle when an archive is closed by the controller"""
+        if not file_path:  # All archives closed
+            while self.archive_tabs.count() > 0:
+                self.archive_tabs.removeTab(0)
+            self.show_empty_state()
+        else:
+            # Find and remove specific tab
+            for i in range(self.archive_tabs.count()):
+                widget = self.archive_tabs.widget(i)
+                if isinstance(widget, IMGArchiveTab) and widget.img_archive.file_path == file_path:
+                    self.archive_tabs.removeTab(i)
+                    break
+            
+            if self.archive_tabs.count() == 0:
+                self.show_empty_state()
+        
+        self.update_status()
+        self.update_info_panel()
+    
+    def _on_archive_switched(self, img_archive):
+        """Handle when active archive is switched"""
+        if img_archive and img_archive.file_path:
+            self.switch_to_archive(img_archive.file_path)
+        self.update_status()
+        self.update_info_panel()
+        self.archive_switched.emit(img_archive)
+    
+    def _on_entries_selected(self, entries):
+        """Handle entry selection in current tab"""
+        # Update right panel based on selection
+        pass
+    
+    def _on_archive_modified(self, file_path):
+        """Handle archive modification"""
+        if not file_path:
+            return
+            
+        # Update tab title to show modified state
+        for i in range(self.archive_tabs.count()):
+            widget = self.archive_tabs.widget(i)
+            if isinstance(widget, IMGArchiveTab) and widget.img_archive.file_path == file_path:
+                current_title = self.archive_tabs.tabText(i)
+                if not current_title.endswith("*"):
+                    self.archive_tabs.setTabText(i, current_title + "*")
+                break
+    
+    def _on_tab_action_requested(self, action_name, data):
+        """Handle action requests from tabs"""
+        # Switch context to the requesting tab's archive if needed
+        if isinstance(data, dict) and 'archive' in data:
+            archive = data['archive']
+            current_archive = self.get_current_archive()
+            if (archive and archive.file_path and 
+                current_archive and current_archive.file_path and
+                archive.file_path != current_archive.file_path):
+                self.switch_to_archive(archive.file_path)
+        
+        # Handle the action
+        self.handle_img_tool(action_name)
+    
+    def get_current_archive(self):
+        """Get currently active archive"""
+        return self.img_controller.get_active_archive()
+    
+    def get_selected_entries(self):
+        """Get selected entries from current tab"""
+        if self.current_archive_tab:
+            return self.current_archive_tab.get_selected_entries()
+        return []
+    
+    def update_info_panel(self):
+        """Update the information panel with current archive data"""
+        if self.current_archive_tab:
+            archive_info = self.current_archive_tab.get_archive_info()
+            self.file_info_panel.update_info(archive_info)
+        else:
+            self.file_info_panel.update_info()
+    
     def create_right_panel(self):
-        """Create the right panel with tools and actions"""
+        """Create the right panel with tools and information"""
         right_panel = QWidget()
         right_layout = QVBoxLayout()
         
-        # Set size policy and fixed dimensions to prevent resizing
+        # Set size policy and fixed dimensions
         right_panel.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
-        right_panel.setMinimumWidth(350)  # Minimum width for right panel
+        right_panel.setMinimumWidth(350)
         
+        # File info panel
         self.file_info_panel = IMGFileInfoPanel()
         right_layout.addWidget(self.file_info_panel)
-                
+        
         # Quick actions
         actions_group = QGroupBox("⚡ Quick Actions")
         actions_layout = QVBoxLayout()
@@ -499,13 +1016,12 @@ class ImgEditorTool(QWidget):
         # IMG Tools Section
         tools_group = self.create_tools_section()
         
-        # Wrap tools in a scroll area to handle overflow while maintaining size
+        # Wrap tools in a scroll area
         tools_scroll = QScrollArea()
         tools_scroll.setWidget(tools_group)
         tools_scroll.setWidgetResizable(True)
         tools_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         
-        # Add the scroll area with a stretch factor to make it fill remaining space
         right_layout.addWidget(tools_scroll, 1)
         
         right_panel.setLayout(right_layout)
@@ -594,7 +1110,7 @@ class ImgEditorTool(QWidget):
         # Main grid layout for buttons
         file_grid = QGridLayout()
         # Set horizontal spacing between columns
-        file_grid.setHorizontalSpacing(5)
+        file_grid.setHorizontalSpacing(15)
         # Set vertical spacing between rows
         
         # Create buttons
@@ -615,53 +1131,17 @@ class ImgEditorTool(QWidget):
         
         recent_files_btn = QPushButton("📋 Recent Files")
         recent_files_btn.clicked.connect(lambda: self.handle_img_tool("Recent Files"))
-        
-        save_img_btn = QPushButton("💾 Save IMG")
-        save_img_btn.clicked.connect(lambda: self.handle_img_tool("Save IMG"))
-        
-        save_as_btn = QPushButton("📋 Save As...")
-        save_as_btn.clicked.connect(lambda: self.handle_img_tool("Save IMG As"))
-        
-        reload_btn = QPushButton("🔄 Reload IMG")
-        reload_btn.clicked.connect(lambda: self.handle_img_tool("Reload IMG"))
+                
         
         # Add buttons to grid - using a 3x3 grid for better organization
         file_grid.addWidget(create_new_btn, 0, 0)
         file_grid.addWidget(open_img_btn, 0, 1)
-        file_grid.addWidget(save_img_btn, 0, 2)
         
         file_grid.addWidget(open_multiple_btn, 1, 0)
         file_grid.addWidget(close_img_btn, 1, 1)
-        file_grid.addWidget(save_as_btn, 1, 2)
         
         file_grid.addWidget(close_all_btn, 2, 0)
         file_grid.addWidget(recent_files_btn, 2, 1)
-        file_grid.addWidget(reload_btn, 2, 2)
-        
-        file_ops_group.setLayout(file_grid)
-        
-        # Add to parent layout
-        parent_layout.addWidget(file_ops_group)
-        
-        save_img_btn = QPushButton("💾 Save IMG")
-        save_img_btn.clicked.connect(lambda: self.handle_img_tool("Save IMG"))
-        
-        save_as_btn = QPushButton("💾 Save As")
-        save_as_btn.clicked.connect(lambda: self.handle_img_tool("Save As"))
-        
-        reload_btn = QPushButton("🔄 Reload")
-        reload_btn.clicked.connect(lambda: self.handle_img_tool("Reload/Refresh"))
-        
-        # Add buttons to grid (vertical arrangement)
-        file_grid.addWidget(create_new_btn, 0, 0)
-        file_grid.addWidget(open_img_btn, 1, 0)
-        file_grid.addWidget(open_multiple_btn, 2, 0)
-        file_grid.addWidget(close_img_btn, 0, 1)
-        file_grid.addWidget(close_all_btn, 1, 1)
-        file_grid.addWidget(recent_files_btn, 2, 1)
-        file_grid.addWidget(save_img_btn, 0, 2)
-        file_grid.addWidget(save_as_btn, 1, 2)
-        file_grid.addWidget(reload_btn, 2, 2)
         
         file_ops_group.setLayout(file_grid)
         
@@ -868,27 +1348,17 @@ class ImgEditorTool(QWidget):
     
     def handle_img_tool(self, tool_name):
         """Handle IMG tool action"""
-        # Initialize backend if not already done
-        if not hasattr(self, 'img_editor'):
-            from .img_controller import IMGController
-            self.img_editor = IMGController()
-            
-            # Connect signals
-            self.img_editor.img_loaded.connect(self._on_img_loaded)
-            self.img_editor.img_closed.connect(self._on_img_closed)
-            self.img_editor.entries_updated.connect(self._on_entries_updated)
-        
-        # Handle different tool actions
+        # Handle different tool actions using imported handlers
         if tool_name == "Open IMG":
-            self._open_img_file()
+            self._open_single_img()
+        elif tool_name == "Open Multiple Files":
+            self._open_multiple_imgs()
+        elif tool_name == "Close IMG":
+            self._close_current_img()
+        elif tool_name == "Close All":
+            self._close_all_imgs()
         elif tool_name == "Create New IMG":
             self._create_new_img()
-        elif tool_name == "Save IMG":
-            self._save_img()
-        elif tool_name == "Save IMG As":
-            self._save_img_as()
-        elif tool_name == "Close IMG":
-            self._close_img()
         elif tool_name == "Add Files":
             self._add_files()
         elif tool_name == "Extract Selected":
@@ -897,46 +1367,63 @@ class ImgEditorTool(QWidget):
             self._delete_selected()
         else:
             # For other tools not yet implemented
-            from application.common.message_box import message_box
-            message_box.info(f"The '{tool_name}' feature is not implemented yet.", "Feature Not Implemented")
+            message_box.info(f"The '{tool_name}' feature is not implemented yet.", "Feature Not Implemented", self)
     
-    def _on_filter_changed(self, filter_text, filter_type, filter_rw_version):
-        """Apply filters to the entries table"""
-        self.entries_table.apply_filter(filter_text, filter_type, filter_rw_version)
-    
-    def _on_entry_double_clicked(self, entry):
-        """Handle double-click on an entry"""
-        # In a real implementation, this might show a preview or allow editing
-        # For now, show entry details
-        entry_info = f"Name: {entry.name}\n"
-        entry_info += f"Type: {entry.type}\n"
-        entry_info += f"Size: {entry.actual_size:,} bytes\n"
-        entry_info += f"Offset: Sector {entry.offset}"
+    def _open_single_img(self):
+        """Open a single IMG file"""
+        file_dialog = QFileDialog()
+        file_path, _ = file_dialog.getOpenFileName(
+            self, 
+            "Open IMG Archive", 
+            "", 
+            "IMG Archives (*.img);;All Files (*.*)"
+        )
         
-        message_box("Entry Details", entry_info, "info")
-    
-    def _on_entry_selected(self, entries):
-        """Handle entry selection - update info panel"""
-        # Store selected entries in the main editor
-        if hasattr(self, 'img_editor'):
-            self.img_editor.set_selected_entries(entries)
+        if file_path:
+            success, message = self.open_archive(file_path)
+            if success:
+                message_box.info(message, "Success", self)
+            else:
+                message_box.error(message, "Error", self)
+
+    def _open_multiple_imgs(self):
+        """Open multiple IMG files"""
+        file_dialog = QFileDialog()
+        file_paths, _ = file_dialog.getOpenFileNames(
+            self, 
+            "Open Multiple IMG Archives", 
+            "", 
+            "IMG Archives (*.img);;All Files (*.*)"
+        )
+        
+        if file_paths:
+            success, message = self.open_multiple_archives(file_paths)
+            if success:
+                message_box.info(message, "Success", self)
+            else:
+                message_box.error(message, "Error", self)
+
+    def _close_current_img(self):
+        """Close current IMG archive"""
+        current_index = self.archive_tabs.currentIndex()
+        if current_index >= 0 and isinstance(self.archive_tabs.widget(current_index), IMGArchiveTab):
+            self._close_archive_tab(current_index)
+        else:
+            message_box.warning("No archive is currently open.", "No Archive", self)
+
+    def _close_all_imgs(self):
+        """Close all IMG archives"""
+        while self.archive_tabs.count() > 0:
+            widget = self.archive_tabs.widget(0)
+            if isinstance(widget, IMGArchiveTab):
+                self._close_archive_tab(0)
+            else:
+                break
+        self.show_empty_state()
     
     def load_img_file(self, file_path):
-        """Load an IMG file into the editor"""
-        # Initialize backend if not already done
-        if not hasattr(self, 'img_editor'):
-            from .img_controller import IMGController
-            self.img_editor = IMGController()
-            
-            # Connect signals
-            self.img_editor.img_loaded.connect(self._on_img_loaded)
-            self.img_editor.img_closed.connect(self._on_img_closed)
-            self.img_editor.entries_updated.connect(self._on_entries_updated)
-            
-        # Load the file
-        success, message = self.img_editor.open_img(file_path)
-        
+        """Load an IMG file into the editor (public interface)"""
+        success, message = self.open_archive(file_path)
         if not success:
-            message_box.error("Error Loading IMG", message, "error")
-            
+            message_box.error(message, "Error Loading IMG", self)
         return success

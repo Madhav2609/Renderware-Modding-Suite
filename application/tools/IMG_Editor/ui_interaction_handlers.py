@@ -17,7 +17,7 @@ def _open_img_file(self):
     success, message = self.img_editor.open_img(file_path)
     if not success:
         from application.common.message_box import message_box
-        message_box("Error Opening IMG", message, "error")
+        message_box.error(message, "Error Opening IMG", self)
 
 def _create_new_img(self):
     """Create a new IMG file"""
@@ -52,50 +52,14 @@ def _create_new_img(self):
         
         if not success:
             from application.common.message_box import message_box
-            message_box("Error Creating IMG", message, "error")
+            message_box.error(message, "Error Creating IMG", self)
 
-def _save_img(self):
-    """Save the current IMG file"""
-    if not self.img_editor.is_img_open():
-        from application.common.message_box import message_box
-        message_box("No IMG Open", "No IMG file is currently open to save.", "info")
-        return
-        
-    success, message = self.img_editor.save_img()
-    
-    from application.common.message_box import message_box
-    if not success:
-        message_box("Error Saving IMG", message, "error")
-    else:
-        message_box("IMG Saved", message, "info")
-
-def _save_img_as(self):
-    """Save the current IMG file with a new name"""
-    if not self.img_editor.is_img_open():
-        from application.common.message_box import message_box
-        message_box("No IMG Open", "No IMG file is currently open to save.", "info")
-        return
-        
-    file_path, _ = QFileDialog.getSaveFileName(
-        self, "Save IMG As", "", "IMG Files (*.img);;All Files (*.*)"
-    )
-    
-    if not file_path:
-        return
-        
-    success, message = self.img_editor.save_img_as(file_path)
-    
-    from application.common.message_box import message_box
-    if not success:
-        message_box("Error Saving IMG", message, "error")
-    else:
-        message_box("IMG Saved", message, "info")
 
 def _close_img(self):
     """Close the current IMG file"""
     if not self.img_editor.is_img_open():
         from application.common.message_box import message_box
-        message_box("No IMG Open", "No IMG file is currently open to close.", "info")
+        message_box.info("No IMG file is currently open to close.", "No IMG Open", self)
         return
         
     success, message = self.img_editor.close_img()
@@ -104,7 +68,7 @@ def _add_files(self):
     """Add files to the current IMG archive"""
     if not self.img_editor.is_img_open():
         from application.common.message_box import message_box
-        message_box("No IMG Open", "No IMG file is currently open.", "info")
+        message_box.info("No IMG file is currently open.", "No IMG Open", self)
         return
         
     file_paths, _ = QFileDialog.getOpenFileNames(
@@ -118,20 +82,20 @@ def _add_files(self):
     
     from application.common.message_box import message_box
     if not success:
-        message_box("Error Adding Files", message, "error")
+        message_box.error(message, "Error Adding Files", self)
     else:
-        message_box("Files Added", message, "info")
+        message_box.info(message, "Files Added", self)
 
 def _extract_selected(self):
     """Extract selected entries"""
     if not self.img_editor.is_img_open():
         from application.common.message_box import message_box
-        message_box("No IMG Open", "No IMG file is currently open.", "info")
+        message_box.info("No IMG file is currently open.", "No IMG Open", self)
         return
         
     if not self.img_editor.selected_entries:
         from application.common.message_box import message_box
-        message_box("No Selection", "No entries selected to extract.", "info")
+        message_box.info("No entries selected to extract.", "No Selection", self)
         return
         
     output_dir = QFileDialog.getExistingDirectory(
@@ -145,20 +109,20 @@ def _extract_selected(self):
     
     from application.common.message_box import message_box
     if not success:
-        message_box("Error Extracting Files", message, "error")
+        message_box.error(message, "Error Extracting Files", self)
     else:
-        message_box("Files Extracted", message, "info")
+        message_box.info(message, "Files Extracted", self)
 
 def _delete_selected(self):
     """Delete selected entries"""
     if not self.img_editor.is_img_open():
         from application.common.message_box import message_box
-        message_box("No IMG Open", "No IMG file is currently open.", "info")
+        message_box.info("No IMG file is currently open.", "No IMG Open", self)
         return
         
     if not self.img_editor.selected_entries:
         from application.common.message_box import message_box
-        message_box("No Selection", "No entries selected to delete.", "info")
+        message_box.info("No entries selected to delete.", "No Selection", self)
         return
         
     # Confirm deletion
@@ -172,9 +136,9 @@ def _delete_selected(self):
         success, message = self.img_editor.delete_selected()
         from application.common.message_box import message_box
         if not success:
-            message_box("Error Deleting Entries", message, "error")
+            message_box.error(message, "Error Deleting Entries", self)
         else:
-            message_box("Entries Deleted", message, "info")
+            message_box.info(message, "Entries Deleted", self)
 
 # Signal handlers for backend events
 

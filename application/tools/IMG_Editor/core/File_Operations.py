@@ -8,20 +8,73 @@ import struct
 from pathlib import Path
 from .Core import IMGArchive, IMGEntry, SECTOR_SIZE, V2_SIGNATURE, MAX_FILENAME_LENGTH
 
+class ArchiveManager:
+    """Manager class for handling multiple open IMG archives."""
+    
+    def __init__(self):
+        self.open_archives = {}  # Dictionary: file_path -> IMGArchive
+        self.active_archive = None  # Currently active archive
+        
+    def get_archive_count(self):
+        """Returns the number of open archives."""
+        return len(self.open_archives)
+    
+    def get_archive_paths(self):
+        """Returns list of all open archive paths."""
+        return list(self.open_archives.keys())
+    
+    def get_archive(self, file_path):
+        """Get a specific archive by file path."""
+        return self.open_archives.get(file_path)
+    
+    def set_active_archive(self, file_path):
+        """Set the active archive."""
+        if file_path in self.open_archives:
+            self.active_archive = self.open_archives[file_path]
+            return True
+        return False
+    
+    def get_active_archive(self):
+        """Get the currently active archive."""
+        return self.active_archive
+    
+    def close_archive(self, file_path):
+        """Close a specific archive."""
+        if file_path in self.open_archives:
+            del self.open_archives[file_path]
+            if self.active_archive and self.active_archive.file_path == file_path:
+                # Set new active archive if available
+                if self.open_archives:
+                    self.active_archive = next(iter(self.open_archives.values()))
+                else:
+                    self.active_archive = None
+            return True
+        return False
+    
+    def close_all_archives(self):
+        """Close all open archives."""
+        self.open_archives.clear()
+        self.active_archive = None
+
 class File_Operations:
     """Class containing methods for file operations on IMG archives."""
     
     @staticmethod
-    def open_archive(file_path):
+    def open_archive(file_path, archive_manager=None):
         """
         Opens an IMG archive and reads its contents.
         
         Args:
             file_path: Path to the IMG file
+            archive_manager: Optional ArchiveManager instance for multi-archive support
             
         Returns:
             IMGArchive object representing the opened archive
         """
+        # Check if file is already open in archive manager
+        if archive_manager and file_path in archive_manager.open_archives:
+            return archive_manager.open_archives[file_path]
+        
         img_archive = IMGArchive()
         img_archive.file_path = file_path
         
@@ -88,8 +141,42 @@ class File_Operations:
                         entry.name = name_bytes.decode('ascii', errors='replace')
                         img_archive.entries.append(entry)
         
+        # Add to archive manager if provided
+        if archive_manager:
+            archive_manager.open_archives[file_path] = img_archive
+            if not archive_manager.active_archive:
+                archive_manager.active_archive = img_archive
+        
         return img_archive
     
+    @staticmethod
+    def open_multiple_archives(file_paths, archive_manager):
+        """
+        Opens multiple IMG archives using the archive manager.
+        
+        Args:
+            file_paths: List of paths to IMG files
+            archive_manager: ArchiveManager instance
+            
+        Returns:
+            Tuple (success_count, failed_files, error_messages)
+        """
+        success_count = 0
+        failed_files = []
+        error_messages = []
+        
+        for file_path in file_paths:
+            try:
+                File_Operations.open_archive(file_path, archive_manager)
+                success_count += 1
+            except Exception as e:
+                failed_files.append(file_path)
+                error_messages.append(f"{Path(file_path).name}: {str(e)}")
+        
+        return success_count, failed_files, error_messages
+    
+      
+
     @staticmethod
     def create_new_archive(file_path, version='V2'):
         """
@@ -189,16 +276,21 @@ class File_Operations:
         return True
     
     @staticmethod
-    def close_archive(img_archive):
+    def close_archive(img_archive, archive_manager=None):
         """
         Closes an IMG archive, cleaning up any resources.
         
         Args:
             img_archive: IMGArchive object to close
+            archive_manager: Optional ArchiveManager instance
             
         Returns:
             True if successful, False otherwise
         """
+        # Remove from archive manager if provided
+        if archive_manager and img_archive.file_path:
+            archive_manager.close_archive(img_archive.file_path)
+        
         # Reset the archive object
         img_archive.file_path = None
         img_archive.dir_path = None
