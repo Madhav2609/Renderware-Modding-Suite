@@ -3,6 +3,9 @@ Modern dark theme styles for the Renderware Modding Suite
 Inspired by VS Code and other modern development environments
 """
 
+from .responsive_utils import get_responsive_manager
+
+
 class ModernDarkTheme:
     """Color palette for the modern dark theme"""
     
@@ -33,7 +36,12 @@ class ModernDarkTheme:
     
     @staticmethod
     def get_main_stylesheet():
-        """Main application stylesheet"""
+        """Main application stylesheet with responsive sizing"""
+        rm = get_responsive_manager()
+        fonts = rm.get_font_config()
+        spacing = rm.get_spacing_config()
+        button_size = rm.get_button_size()
+        
         return f"""
         QMainWindow {{
             background-color: {ModernDarkTheme.BACKGROUND_PRIMARY};
@@ -45,14 +53,15 @@ class ModernDarkTheme:
             background-color: {ModernDarkTheme.BACKGROUND_TERTIARY};
             color: {ModernDarkTheme.TEXT_PRIMARY};
             border: none;
-            padding: 4px;
+            padding: {spacing['small']}px;
+            font-size: {fonts['menu']['size']}px;
         }}
         
         QMenuBar::item {{
             background-color: transparent;
-            padding: 6px 12px;
+            padding: {spacing['small']}px {spacing['medium']}px;
             border-radius: 4px;
-            margin: 2px;
+            margin: {spacing['small']//2}px;
         }}
         
         QMenuBar::item:selected {{
@@ -67,11 +76,12 @@ class ModernDarkTheme:
             background-color: {ModernDarkTheme.BACKGROUND_TERTIARY};
             color: {ModernDarkTheme.TEXT_PRIMARY};
             border: 1px solid {ModernDarkTheme.BORDER_SECONDARY};
-            padding: 4px;
+            padding: {spacing['small']}px;
+            font-size: {fonts['menu']['size']}px;
         }}
         
         QMenu::item {{
-            padding: 6px 12px;
+            padding: {spacing['small']}px {spacing['medium']}px;
             border-radius: 4px;
         }}
         
@@ -82,21 +92,21 @@ class ModernDarkTheme:
         QMenu::separator {{
             height: 1px;
             background-color: {ModernDarkTheme.BORDER_SECONDARY};
-            margin: 4px 8px;
+            margin: {spacing['small']}px {spacing['medium']}px;
         }}
         
         /* Toolbar Styles */
         QToolBar {{
             background-color: {ModernDarkTheme.BACKGROUND_TERTIARY};
             border: none;
-            spacing: 4px;
-            padding: 6px;
+            spacing: {spacing['small']}px;
+            padding: {spacing['small']}px;
         }}
         
         QToolBar::separator {{
             background-color: {ModernDarkTheme.BORDER_SECONDARY};
             width: 1px;
-            margin: 4px 8px;
+            margin: {spacing['small']}px {spacing['medium']}px;
         }}
         
         /* Button Styles */
@@ -104,10 +114,13 @@ class ModernDarkTheme:
             background-color: {ModernDarkTheme.BUTTON_PRIMARY};
             color: white;
             border: none;
-            padding: 8px 16px;
+            padding: {spacing['small']}px {spacing['small'] + 2}px;
             border-radius: 4px;
             font-weight: 500;
-            min-width: 80px;
+            font-size: {fonts['body']['size']}px;
+            min-width: {button_size[0]}px;
+            min-height: {button_size[1]}px;
+            max-height: {button_size[1] + 4}px;
         }}
         
         QPushButton:hover {{
@@ -129,11 +142,11 @@ class ModernDarkTheme:
             color: {ModernDarkTheme.TEXT_PRIMARY};
             border: none;
             outline: none;
-            font-size: 13px;
+            font-size: {fonts['body']['size']}px;
         }}
         
         QTreeWidget::item {{
-            padding: 6px 4px;
+            padding: {spacing['small']}px;
             border-bottom: 1px solid {ModernDarkTheme.BACKGROUND_TERTIARY};
         }}
         
@@ -162,11 +175,12 @@ class ModernDarkTheme:
         QTabBar::tab {{
             background-color: {ModernDarkTheme.BACKGROUND_TERTIARY};
             color: {ModernDarkTheme.TEXT_PRIMARY};
-            padding: 10px 16px;
+            padding: {spacing['small']}px {spacing['medium']}px;
             margin-right: 2px;
             border-top-left-radius: 4px;
             border-top-right-radius: 4px;
-            min-width: 100px;
+            min-width: {rm.get_scaled_size(80)}px;
+            font-size: {fonts['body']['size']}px;
         }}
         
         QTabBar::tab:selected {{
@@ -183,10 +197,10 @@ class ModernDarkTheme:
             image: url(data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHZpZXdCb3g9IjAgMCAxNiAxNiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTEyIDRMNCA5NU00IDRMMTIgMTIiIHN0cm9rZT0iI2NjY2NjYyIgc3Ryb2tlLXdpZHRoPSIxLjUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgo8L3N2Zz4K);
             subcontrol-position: right;
             subcontrol-origin: padding;
-            margin: 4px;
+            margin: {spacing['small']}px;
             padding: 2px;
-            width: 16px;
-            height: 16px;
+            width: {rm.get_icon_size()}px;
+            height: {rm.get_icon_size()}px;
             background-color: transparent;
             border-radius: 2px;
         }}
@@ -205,10 +219,10 @@ class ModernDarkTheme:
             background-color: {ModernDarkTheme.BACKGROUND_PRIMARY};
             color: {ModernDarkTheme.TEXT_PRIMARY};
             border: 1px solid {ModernDarkTheme.BORDER_PRIMARY};
-            font-family: 'Consolas', 'Monaco', 'Cascadia Code', monospace;
-            font-size: 14px;
+            font-family: {fonts['code']['family']};
+            font-size: {fonts['code']['size']}px;
             line-height: 1.4;
-            padding: 8px;
+            padding: {spacing['medium']}px;
         }}
         
         QTextEdit:focus {{
@@ -218,14 +232,14 @@ class ModernDarkTheme:
         /* Scrollbar Styles */
         QScrollBar:vertical {{
             background-color: {ModernDarkTheme.BACKGROUND_SECONDARY};
-            width: 12px;
+            width: {rm.get_scaled_size(12)}px;
             border: none;
         }}
         
         QScrollBar::handle:vertical {{
             background-color: {ModernDarkTheme.BORDER_SECONDARY};
-            border-radius: 6px;
-            min-height: 20px;
+            border-radius: {rm.get_scaled_size(6)}px;
+            min-height: {rm.get_scaled_size(20)}px;
             margin: 2px;
         }}
         
@@ -239,14 +253,14 @@ class ModernDarkTheme:
         
         QScrollBar:horizontal {{
             background-color: {ModernDarkTheme.BACKGROUND_SECONDARY};
-            height: 12px;
+            height: {rm.get_scaled_size(12)}px;
             border: none;
         }}
         
         QScrollBar::handle:horizontal {{
             background-color: {ModernDarkTheme.BORDER_SECONDARY};
-            border-radius: 6px;
-            min-width: 20px;
+            border-radius: {rm.get_scaled_size(6)}px;
+            min-width: {rm.get_scaled_size(20)}px;
             margin: 2px;
         }}
         
@@ -263,8 +277,8 @@ class ModernDarkTheme:
             background-color: {ModernDarkTheme.TEXT_ACCENT};
             color: white;
             border: none;
-            font-size: 12px;
-            padding: 4px;
+            font-size: {fonts['status']['size']}px;
+            padding: {spacing['small']}px;
         }}
         
         /* ComboBox Styles */
@@ -272,9 +286,10 @@ class ModernDarkTheme:
             background-color: {ModernDarkTheme.BACKGROUND_TERTIARY};
             color: {ModernDarkTheme.TEXT_PRIMARY};
             border: 1px solid {ModernDarkTheme.BORDER_SECONDARY};
-            padding: 6px 12px;
+            padding: {spacing['small']}px {spacing['medium']}px;
             border-radius: 4px;
-            min-width: 120px;
+            min-width: {rm.get_scaled_size(120)}px;
+            font-size: {fonts['body']['size']}px;
         }}
         
         QComboBox:hover {{
@@ -283,7 +298,7 @@ class ModernDarkTheme:
         
         QComboBox::drop-down {{
             border: none;
-            width: 20px;
+            width: {rm.get_scaled_size(20)}px;
         }}
         
         QComboBox::down-arrow {{
@@ -295,6 +310,7 @@ class ModernDarkTheme:
             color: {ModernDarkTheme.TEXT_PRIMARY};
             border: 1px solid {ModernDarkTheme.BORDER_SECONDARY};
             selection-background-color: {ModernDarkTheme.TEXT_ACCENT};
+            font-size: {fonts['body']['size']}px;
         }}
         
         /* Progress Bar Styles */
@@ -304,7 +320,8 @@ class ModernDarkTheme:
             border-radius: 4px;
             text-align: center;
             color: {ModernDarkTheme.TEXT_PRIMARY};
-            height: 20px;
+            height: {rm.get_scaled_size(20)}px;
+            font-size: {fonts['small']['size']}px;
         }}
         
         QProgressBar::chunk {{
@@ -318,11 +335,11 @@ class ModernDarkTheme:
         }}
         
         QSplitter::handle:horizontal {{
-            width: 4px;
+            width: {spacing['small']}px;
         }}
         
         QSplitter::handle:vertical {{
-            height: 4px;
+            height: {spacing['small']}px;
         }}
         
         QSplitter::handle:hover {{
@@ -338,95 +355,185 @@ class ModernDarkTheme:
         /* Label Styles */
         QLabel {{
             color: {ModernDarkTheme.TEXT_PRIMARY};
+            font-size: {fonts['body']['size']}px;
         }}
         
         QLabel#titleLabel {{
             color: {ModernDarkTheme.TEXT_ACCENT};
             font-weight: bold;
-            font-size: 14px;
+            font-size: {fonts['header']['size']}px;
         }}
         
         QLabel#sectionLabel {{
             color: {ModernDarkTheme.TEXT_SUCCESS};
             font-weight: bold;
-            font-size: 12px;
-            margin: 10px 0 5px 0;
+            font-size: {fonts['subheader']['size']}px;
+            margin: {spacing['medium']}px 0 {spacing['small']}px 0;
+        }}
+        
+        /* List Widget Styles */
+        QListWidget {{
+            background-color: {ModernDarkTheme.BACKGROUND_SECONDARY};
+            color: {ModernDarkTheme.TEXT_PRIMARY};
+            border: 1px solid {ModernDarkTheme.BORDER_PRIMARY};
+            outline: none;
+            font-size: {fonts['body']['size']}px;
+        }}
+        
+        QListWidget::item {{
+            padding: {spacing['small']}px;
+            border-bottom: 1px solid {ModernDarkTheme.BACKGROUND_TERTIARY};
+        }}
+        
+        QListWidget::item:selected {{
+            background-color: {ModernDarkTheme.SELECTION_COLOR};
+        }}
+        
+        QListWidget::item:hover {{
+            background-color: {ModernDarkTheme.HOVER_COLOR};
+        }}
+        
+        /* Group Box Styles */
+        QGroupBox {{
+            color: {ModernDarkTheme.TEXT_PRIMARY};
+            border: 1px solid {ModernDarkTheme.BORDER_SECONDARY};
+            border-radius: 4px;
+            margin-top: {spacing['medium']}px;
+            font-size: {fonts['subheader']['size']}px;
+            font-weight: bold;
+        }}
+        
+        QGroupBox::title {{
+            subcontrol-origin: margin;
+            left: {spacing['medium']}px;
+            padding: 0 {spacing['small']}px 0 {spacing['small']}px;
+        }}
+        
+        /* Table Widget Styles */
+        QTableWidget {{
+            background-color: {ModernDarkTheme.BACKGROUND_SECONDARY};
+            color: {ModernDarkTheme.TEXT_PRIMARY};
+            gridline-color: {ModernDarkTheme.BORDER_SECONDARY};
+            border: 1px solid {ModernDarkTheme.BORDER_PRIMARY};
+            outline: none;
+            font-size: {fonts['body']['size']}px;
+        }}
+        
+        QTableWidget::item {{
+            padding: {spacing['small']}px;
+        }}
+        
+        QTableWidget::item:selected {{
+            background-color: {ModernDarkTheme.SELECTION_COLOR};
+        }}
+        
+        QTableWidget::item:hover {{
+            background-color: {ModernDarkTheme.HOVER_COLOR};
+        }}
+        
+        QHeaderView::section {{
+            background-color: {ModernDarkTheme.BACKGROUND_TERTIARY};
+            color: {ModernDarkTheme.TEXT_PRIMARY};
+            padding: {spacing['medium']}px;
+            border: 1px solid {ModernDarkTheme.BORDER_SECONDARY};
+            font-size: {fonts['body']['size']}px;
+            font-weight: bold;
         }}
         """
     
     @staticmethod
     def get_welcome_html():
-        """HTML content for the welcome tab"""
+        """HTML content for the welcome tab with responsive sizing"""
+        rm = get_responsive_manager()
+        fonts = rm.get_font_config()
+        spacing = rm.get_spacing_config()
+        
+        # Adjust layout based on screen size
+        if rm.breakpoint == "small":
+            container_padding = spacing['medium']
+            title_size = fonts['header']['size'] + 4
+            subtitle_size = fonts['subheader']['size']
+            body_size = fonts['body']['size']
+            flex_direction = "column"  # Stack vertically on small screens
+            section_margin = spacing['small']
+        else:
+            container_padding = spacing['large']
+            title_size = fonts['header']['size'] + 6
+            subtitle_size = fonts['subheader']['size'] + 1
+            body_size = fonts['body']['size']
+            flex_direction = "row"  # Side by side on larger screens
+            section_margin = spacing['medium']
+        
         return f"""
-        <div style="color: {ModernDarkTheme.TEXT_PRIMARY}; font-size: 14px; padding: 30px; font-family: 'Segoe UI', Arial, sans-serif;">
-            <div style="text-align: center; margin-bottom: 40px;">
-                <h1 style="color: {ModernDarkTheme.TEXT_ACCENT}; font-size: 32px; margin-bottom: 10px;">
+        <div style="color: {ModernDarkTheme.TEXT_PRIMARY}; font-size: {body_size}px; padding: {container_padding}px; font-family: 'Segoe UI', Arial, sans-serif;">
+            <div style="text-align: center; margin-bottom: {spacing['xlarge'] * 2}px;">
+                <h1 style="color: {ModernDarkTheme.TEXT_ACCENT}; font-size: {title_size}px; margin-bottom: {spacing['medium']}px;">
                     ⚡ Renderware Modding Suite
                 </h1>
-                <p style="color: {ModernDarkTheme.TEXT_SECONDARY}; font-size: 16px;">
+                <p style="color: {ModernDarkTheme.TEXT_SECONDARY}; font-size: {subtitle_size}px;">
                     Professional modding tools for 3D era Grand Theft Auto games
                 </p>
             </div>
             
-            <div style="display: flex; justify-content: space-between; margin-bottom: 30px;">
-                <div style="flex: 1; margin-right: 20px;">
-                    <h3 style="color: {ModernDarkTheme.TEXT_SUCCESS}; margin-bottom: 15px;">🎮 Supported Games</h3>
+            <div style="display: flex; flex-direction: {flex_direction}; justify-content: space-between; margin-bottom: {spacing['xlarge']}px; gap: {spacing['large']}px;">
+                <div style="flex: 1;">
+                    <h3 style="color: {ModernDarkTheme.TEXT_SUCCESS}; margin-bottom: {spacing['medium']}px; font-size: {fonts['subheader']['size']}px;">🎮 Supported Games</h3>
                     <ul style="list-style: none; padding: 0;">
-                        <li style="margin-bottom: 8px; padding: 8px; background-color: {ModernDarkTheme.BACKGROUND_SECONDARY}; border-radius: 4px;">
-                            <strong style="color: {ModernDarkTheme.TEXT_ACCENT};">GTA III (2001)</strong><br>
-                            <span style="color: {ModernDarkTheme.TEXT_SECONDARY};">Liberty City - Where it all began</span>
+                        <li style="margin-bottom: {spacing['medium']}px; padding: {spacing['medium']}px; background-color: {ModernDarkTheme.BACKGROUND_SECONDARY}; border-radius: 4px;">
+                            <strong style="color: {ModernDarkTheme.TEXT_ACCENT}; font-size: {body_size}px;">GTA III (2001)</strong><br>
+                            <span style="color: {ModernDarkTheme.TEXT_SECONDARY}; font-size: {fonts['small']['size']}px;">Liberty City - Where it all began</span>
                         </li>
-                        <li style="margin-bottom: 8px; padding: 8px; background-color: {ModernDarkTheme.BACKGROUND_SECONDARY}; border-radius: 4px;">
-                            <strong style="color: {ModernDarkTheme.TEXT_ACCENT};">GTA Vice City (2002)</strong><br>
-                            <span style="color: {ModernDarkTheme.TEXT_SECONDARY};">80s Miami nostalgia and neon lights</span>
+                        <li style="margin-bottom: {spacing['medium']}px; padding: {spacing['medium']}px; background-color: {ModernDarkTheme.BACKGROUND_SECONDARY}; border-radius: 4px;">
+                            <strong style="color: {ModernDarkTheme.TEXT_ACCENT}; font-size: {body_size}px;">GTA Vice City (2002)</strong><br>
+                            <span style="color: {ModernDarkTheme.TEXT_SECONDARY}; font-size: {fonts['small']['size']}px;">80s Miami nostalgia and neon lights</span>
                         </li>
-                        <li style="padding: 8px; background-color: {ModernDarkTheme.BACKGROUND_SECONDARY}; border-radius: 4px;">
-                            <strong style="color: {ModernDarkTheme.TEXT_ACCENT};">GTA San Andreas (2004)</strong><br>
-                            <span style="color: {ModernDarkTheme.TEXT_SECONDARY};">The biggest adventure across three cities</span>
+                        <li style="padding: {spacing['medium']}px; background-color: {ModernDarkTheme.BACKGROUND_SECONDARY}; border-radius: 4px;">
+                            <strong style="color: {ModernDarkTheme.TEXT_ACCENT}; font-size: {body_size}px;">GTA San Andreas (2004)</strong><br>
+                            <span style="color: {ModernDarkTheme.TEXT_SECONDARY}; font-size: {fonts['small']['size']}px;">The biggest adventure across three cities</span>
                         </li>
                     </ul>
                 </div>
                 
                 <div style="flex: 1;">
-                    <h3 style="color: {ModernDarkTheme.TEXT_SUCCESS}; margin-bottom: 15px;">📁 Supported Formats</h3>
+                    <h3 style="color: {ModernDarkTheme.TEXT_SUCCESS}; margin-bottom: {spacing['medium']}px; font-size: {fonts['subheader']['size']}px;">📁 Supported Formats</h3>
                     <ul style="list-style: none; padding: 0;">
-                        <li style="margin-bottom: 6px; padding: 6px 12px; background-color: {ModernDarkTheme.BACKGROUND_TERTIARY}; border-radius: 4px; border-left: 3px solid {ModernDarkTheme.TEXT_ACCENT};">
+                        <li style="margin-bottom: {spacing['small']}px; padding: {spacing['small']}px {spacing['medium']}px; background-color: {ModernDarkTheme.BACKGROUND_TERTIARY}; border-radius: 4px; border-left: 3px solid {ModernDarkTheme.TEXT_ACCENT}; font-size: {fonts['small']['size']}px;">
                             <strong>DFF</strong> - 3D Models and meshes
                         </li>
-                        <li style="margin-bottom: 6px; padding: 6px 12px; background-color: {ModernDarkTheme.BACKGROUND_TERTIARY}; border-radius: 4px; border-left: 3px solid {ModernDarkTheme.TEXT_SUCCESS};">
+                        <li style="margin-bottom: {spacing['small']}px; padding: {spacing['small']}px {spacing['medium']}px; background-color: {ModernDarkTheme.BACKGROUND_TERTIARY}; border-radius: 4px; border-left: 3px solid {ModernDarkTheme.TEXT_SUCCESS}; font-size: {fonts['small']['size']}px;">
                             <strong>TXD</strong> - Texture dictionaries
                         </li>
-                        <li style="margin-bottom: 6px; padding: 6px 12px; background-color: {ModernDarkTheme.BACKGROUND_TERTIARY}; border-radius: 4px; border-left: 3px solid {ModernDarkTheme.TEXT_WARNING};">
+                        <li style="margin-bottom: {spacing['small']}px; padding: {spacing['small']}px {spacing['medium']}px; background-color: {ModernDarkTheme.BACKGROUND_TERTIARY}; border-radius: 4px; border-left: 3px solid {ModernDarkTheme.TEXT_WARNING}; font-size: {fonts['small']['size']}px;">
                             <strong>COL</strong> - Collision data
                         </li>
-                        <li style="margin-bottom: 6px; padding: 6px 12px; background-color: {ModernDarkTheme.BACKGROUND_TERTIARY}; border-radius: 4px; border-left: 3px solid {ModernDarkTheme.TEXT_ERROR};">
+                        <li style="margin-bottom: {spacing['small']}px; padding: {spacing['small']}px {spacing['medium']}px; background-color: {ModernDarkTheme.BACKGROUND_TERTIARY}; border-radius: 4px; border-left: 3px solid {ModernDarkTheme.TEXT_ERROR}; font-size: {fonts['small']['size']}px;">
                             <strong>IFP</strong> - Animation files
                         </li>
-                        <li style="margin-bottom: 6px; padding: 6px 12px; background-color: {ModernDarkTheme.BACKGROUND_TERTIARY}; border-radius: 4px; border-left: 3px solid {ModernDarkTheme.TEXT_ACCENT};">
+                        <li style="margin-bottom: {spacing['small']}px; padding: {spacing['small']}px {spacing['medium']}px; background-color: {ModernDarkTheme.BACKGROUND_TERTIARY}; border-radius: 4px; border-left: 3px solid {ModernDarkTheme.TEXT_ACCENT}; font-size: {fonts['small']['size']}px;">
                             <strong>IDE</strong> - Item definition files
                         </li>
-                        <li style="padding: 6px 12px; background-color: {ModernDarkTheme.BACKGROUND_TERTIARY}; border-radius: 4px; border-left: 3px solid {ModernDarkTheme.TEXT_SUCCESS};">
+                        <li style="padding: {spacing['small']}px {spacing['medium']}px; background-color: {ModernDarkTheme.BACKGROUND_TERTIARY}; border-radius: 4px; border-left: 3px solid {ModernDarkTheme.TEXT_SUCCESS}; font-size: {fonts['small']['size']}px;">
                             <strong>IPL</strong> - Item placement files
                         </li>
                     </ul>
                 </div>
             </div>
             
-            <div style="background-color: {ModernDarkTheme.BACKGROUND_SECONDARY}; padding: 20px; border-radius: 8px; border-left: 4px solid {ModernDarkTheme.TEXT_ACCENT}; margin-bottom: 30px;">
-                <h3 style="color: {ModernDarkTheme.TEXT_SUCCESS}; margin-bottom: 15px;">🚀 Getting Started</h3>
-                <ol style="color: {ModernDarkTheme.TEXT_SECONDARY}; line-height: 1.6;">
+            <div style="background-color: {ModernDarkTheme.BACKGROUND_SECONDARY}; padding: {spacing['large']}px; border-radius: 8px; border-left: 4px solid {ModernDarkTheme.TEXT_ACCENT}; margin-bottom: {spacing['xlarge']}px;">
+                <h3 style="color: {ModernDarkTheme.TEXT_SUCCESS}; margin-bottom: {spacing['medium']}px; font-size: {fonts['subheader']['size']}px;">🚀 Getting Started</h3>
+                <ol style="color: {ModernDarkTheme.TEXT_SECONDARY}; line-height: 1.6; font-size: {body_size}px;">
                     <li><strong>Select your target game</strong> from the tools panel on the left</li>
                     <li><strong>Choose the appropriate tool</strong> for your modding task</li>
                     <li><strong>Load your game files</strong> and start creating amazing mods!</li>
                 </ol>
             </div>
             
-            <div style="text-align: center; margin-top: 40px;">
-                <p style="color: {ModernDarkTheme.TEXT_ACCENT}; font-size: 18px; font-style: italic;">
+            <div style="text-align: center; margin-top: {spacing['xlarge'] * 2}px;">
+                <p style="color: {ModernDarkTheme.TEXT_ACCENT}; font-size: {subtitle_size}px; font-style: italic;">
                     🌟 Ready to bring your creative vision to the streets of Liberty City, Vice City, and San Andreas! 🌟
                 </p>
-                <div style="margin-top: 20px; padding: 15px; background-color: {ModernDarkTheme.BACKGROUND_TERTIARY}; border-radius: 8px;">
-                    <p style="color: {ModernDarkTheme.TEXT_WARNING}; font-size: 12px; margin: 0;">
+                <div style="margin-top: {spacing['large']}px; padding: {spacing['medium']}px; background-color: {ModernDarkTheme.BACKGROUND_TERTIARY}; border-radius: 8px;">
+                    <p style="color: {ModernDarkTheme.TEXT_WARNING}; font-size: {fonts['small']['size']}px; margin: 0;">
                         ⚠️ Development Status: Frontend Complete | Backend Placeholder | File Parsers In Progress
                     </p>
                 </div>

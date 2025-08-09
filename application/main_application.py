@@ -17,6 +17,7 @@ from application.file_explorer import FileExplorer
 from application.tools_panel import ToolsPanel
 from application.content_area import ContentArea
 from application.status_bar import StatusBarWidget
+from application.responsive_utils import get_responsive_manager
 
 
 class RenderwareModdingSuite(QMainWindow):
@@ -33,9 +34,16 @@ class RenderwareModdingSuite(QMainWindow):
         self.memory_timer.start(5000)  # Update every 5 seconds
     
     def setup_ui(self):
-        """Setup the user interface"""
+        """Setup the user interface with responsive sizing"""
+        rm = get_responsive_manager()
+        
+        # Set responsive window size and title
+        window_size = rm.get_window_size()
         self.setWindowTitle("Renderware Modding Suite - GTA 3D Era Tool")
-        self.setGeometry(100, 100, 1400, 900)
+        self.setGeometry(100, 100, window_size[0], window_size[1])
+        
+        # Print debug info for development
+        rm.print_debug_info()
         
         # Set application icon
         self.set_window_icon()
@@ -44,32 +52,43 @@ class RenderwareModdingSuite(QMainWindow):
         main_widget = QWidget()
         self.setCentralWidget(main_widget)
         
+        # Get responsive margins
+        margins = rm.get_content_margins()
         main_layout = QVBoxLayout(main_widget)
-        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setContentsMargins(margins[0], margins[1], margins[2], margins[3])
         
         # Create horizontal splitter for main content
         splitter = QSplitter(Qt.Orientation.Horizontal)
         
+        # Get panel widths
+        panel_min, panel_max = rm.get_panel_width()
+        
         # Left panel (File Explorer)
         self.file_explorer = FileExplorer()
-        self.file_explorer.setMaximumWidth(300)
-        self.file_explorer.setMinimumWidth(200)
+        self.file_explorer.setMaximumWidth(panel_max)
+        self.file_explorer.setMinimumWidth(panel_min)
         
         # Center area (Content)
         self.content_area = ContentArea()
         
         # Right panel (Tools)
         self.tools_panel = ToolsPanel()
-        self.tools_panel.setMaximumWidth(300)
-        self.tools_panel.setMinimumWidth(200)
+        self.tools_panel.setMaximumWidth(panel_max)
+        self.tools_panel.setMinimumWidth(panel_min)
         
         # Add panels to splitter
         splitter.addWidget(self.file_explorer)
         splitter.addWidget(self.content_area)
         splitter.addWidget(self.tools_panel)
         
-        # Set splitter proportions
-        splitter.setSizes([250, 900, 250])
+        # Set responsive splitter proportions based on screen size
+        if rm.breakpoint == "small":
+            # On small screens, give more space to content
+            splitter.setSizes([panel_min, window_size[0] - (2 * panel_min), panel_min])
+        else:
+            # On larger screens, use balanced proportions
+            content_width = window_size[0] - (2 * panel_max)
+            splitter.setSizes([panel_max, content_width, panel_max])
         
         # Status bar
         self.status_bar = StatusBarWidget()
@@ -169,6 +188,24 @@ class RenderwareModdingSuite(QMainWindow):
         prev_tab_action.setShortcut('Ctrl+Shift+Tab')
         prev_tab_action.triggered.connect(self.switch_to_previous_tab)
         window_menu.addAction(prev_tab_action)
+        
+        window_menu.addSeparator()
+        
+        # UI Scale options
+        zoom_in_action = QAction('Zoom &In', self)
+        zoom_in_action.setShortcut('Ctrl++')
+        zoom_in_action.triggered.connect(self.zoom_in)
+        window_menu.addAction(zoom_in_action)
+        
+        zoom_out_action = QAction('Zoom &Out', self)
+        zoom_out_action.setShortcut('Ctrl+-')
+        zoom_out_action.triggered.connect(self.zoom_out)
+        window_menu.addAction(zoom_out_action)
+        
+        reset_zoom_action = QAction('&Reset Zoom', self)
+        reset_zoom_action.setShortcut('Ctrl+0')
+        reset_zoom_action.triggered.connect(self.reset_zoom)
+        window_menu.addAction(reset_zoom_action)
         
         # Help menu
         help_menu = menubar.addMenu('&Help')
@@ -275,6 +312,44 @@ class RenderwareModdingSuite(QMainWindow):
         """Handle application close event"""
         self.status_bar.set_status("Shutting down...")
         event.accept()
+    
+    def zoom_in(self):
+        """Increase UI scale"""
+        rm = get_responsive_manager()
+        rm.scale_factor = min(2.0, rm.scale_factor * 1.1)
+        self.refresh_ui_scaling()
+        self.status_bar.show_success(f"Zoom increased to {rm.scale_factor:.1f}x")
+    
+    def zoom_out(self):
+        """Decrease UI scale"""
+        rm = get_responsive_manager()
+        rm.scale_factor = max(0.5, rm.scale_factor * 0.9)
+        self.refresh_ui_scaling()
+        self.status_bar.show_success(f"Zoom decreased to {rm.scale_factor:.1f}x")
+    
+    def reset_zoom(self):
+        """Reset UI scale to default"""
+        rm = get_responsive_manager()
+        rm.scale_factor = rm._calculate_scale_factor()  # Reset to calculated default
+        self.refresh_ui_scaling()
+        self.status_bar.show_success(f"Zoom reset to {rm.scale_factor:.1f}x")
+    
+    def refresh_ui_scaling(self):
+        """Refresh the UI with new scaling"""
+        try:
+            # Reapply the stylesheet with new scaling
+            theme = ModernDarkTheme()
+            QApplication.instance().setStyleSheet(theme.get_main_stylesheet())
+            
+            # Update font
+            rm = get_responsive_manager()
+            font_config = rm.get_font_config()
+            new_font = QFont("Fira Code", font_config['body']['size'])
+            QApplication.instance().setFont(new_font)
+            
+            print(f"🎨 UI refreshed with scale factor: {rm.scale_factor:.2f}")
+        except Exception as e:
+            print(f"⚠️ Error refreshing UI scaling: {e}")
 
 
 def main():
@@ -309,12 +384,14 @@ def main():
     except Exception as e:
         print(f"⚠️ Error setting global application icon: {e}")
     
-    # Apply modern dark theme
+    # Apply modern dark theme with responsive sizing
     theme = ModernDarkTheme()
     app.setStyleSheet(theme.get_main_stylesheet())
     
-    # Set a professional font, e.g., 'Fira Code', 'Consolas', or 'JetBrains Mono'
-    professional_font = QFont("Fira Code", 10)
+    # Set responsive font
+    rm = get_responsive_manager()
+    font_config = rm.get_font_config()
+    professional_font = QFont("Fira Code", font_config['body']['size'])
     app.setFont(professional_font)
     
     # Create and show main window
