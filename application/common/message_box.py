@@ -3,8 +3,8 @@ Message Box Module
 Provides standardized error, warning, and information message boxes
 """
 
-from PyQt6.QtWidgets import QMessageBox
-from PyQt6.QtCore import Qt
+from PySide6.QtWidgets import QMessageBox
+from PySide6.QtCore import Qt
 from enum import Enum, auto
 
 class MessageType(Enum):

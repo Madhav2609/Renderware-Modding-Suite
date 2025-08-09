@@ -4,32 +4,41 @@ Handles file browsing and recent files management
 """
 
 import os
-from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QGroupBox, 
+from PySide6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QGroupBox, 
                             QPushButton, QListWidget, QListWidgetItem, 
                             QFileDialog)
-from PyQt6.QtCore import Qt, pyqtSignal
+from PySide6.QtCore import Qt, Signal
+from .responsive_utils import get_responsive_manager
 
 
 class FileExplorer(QWidget):
     """Simple file browser for opening modding files"""
     
-    fileSelected = pyqtSignal(str)  # Signal when file is selected
+    fileSelected = Signal(str)  # Signal when file is selected
     
     def __init__(self):
         super().__init__()
         self.setup_ui()
     
     def setup_ui(self):
-        layout = QVBoxLayout()
+        """Setup the file explorer UI with responsive sizing"""
+        rm = get_responsive_manager()
+        fonts = rm.get_font_config()
+        spacing = rm.get_spacing_config()
         
-        # Header
+        layout = QVBoxLayout()
+        layout.setSpacing(spacing['medium'])
+        
+        # Header with responsive font
         header_label = QLabel("📁 File Browser")
-        header_label.setStyleSheet("font-weight: bold; font-size: 14px; padding: 5px;")
+        header_label.setObjectName("titleLabel")
+        header_label.setStyleSheet(f"font-weight: bold; font-size: {fonts['header']['size']}px; padding: {spacing['small']}px;")
         layout.addWidget(header_label)
         
         # Quick open buttons
         quick_open_group = QGroupBox("⚡ Quick Open")
         quick_layout = QVBoxLayout()
+        quick_layout.setSpacing(spacing['small'])
         
         self.create_quick_open_buttons(quick_layout)
         quick_open_group.setLayout(quick_layout)
@@ -37,6 +46,7 @@ class FileExplorer(QWidget):
         # Recent files list
         recent_group = QGroupBox("📄 Recent Files")
         recent_layout = QVBoxLayout()
+        recent_layout.setSpacing(spacing['small'])
         
         self.recent_files_list = QListWidget()
         self.recent_files_list.addItem("🔄 No recent files")
@@ -45,7 +55,7 @@ class FileExplorer(QWidget):
         recent_layout.addWidget(self.recent_files_list)
         recent_group.setLayout(recent_layout)
         
-        # Browse button
+        # Browse button with responsive sizing
         browse_btn = QPushButton("🗂️ Browse for Files...")
         browse_btn.clicked.connect(self.browse_files)
         

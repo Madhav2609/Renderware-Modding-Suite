@@ -6,10 +6,10 @@ Coordinates all components and manages application state
 import sys
 import os
 from pathlib import Path
-from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
+from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                             QHBoxLayout, QSplitter, QMenuBar, QMenu, QMessageBox)
-from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QAction, QIcon
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtGui import QAction, QIcon, QFont, QPalette, QColor
 
 # Import modular components
 from application.styles import ModernDarkTheme
@@ -17,6 +17,7 @@ from application.file_explorer import FileExplorer
 from application.tools_panel import ToolsPanel
 from application.content_area import ContentArea
 from application.status_bar import StatusBarWidget
+from application.responsive_utils import get_responsive_manager
 
 
 class RenderwareModdingSuite(QMainWindow):
@@ -27,15 +28,24 @@ class RenderwareModdingSuite(QMainWindow):
         self.setup_ui()
         self.setup_connections()
         
+        
         # Memory monitoring timer
         self.memory_timer = QTimer()
         self.memory_timer.timeout.connect(self.update_memory_usage)
         self.memory_timer.start(5000)  # Update every 5 seconds
     
+    
     def setup_ui(self):
-        """Setup the user interface"""
+        """Setup the user interface with responsive sizing"""
+        rm = get_responsive_manager()
+        
+        # Set responsive window size and title
+        window_size = rm.get_window_size()
         self.setWindowTitle("Renderware Modding Suite - GTA 3D Era Tool")
-        self.setGeometry(100, 100, 1400, 900)
+        self.setGeometry(100, 100, window_size[0], window_size[1])
+        
+        # Print debug info for development
+        rm.print_debug_info()
         
         # Set application icon
         self.set_window_icon()
@@ -44,32 +54,43 @@ class RenderwareModdingSuite(QMainWindow):
         main_widget = QWidget()
         self.setCentralWidget(main_widget)
         
+        # Get responsive margins
+        margins = rm.get_content_margins()
         main_layout = QVBoxLayout(main_widget)
-        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setContentsMargins(margins[0], margins[1], margins[2], margins[3])
         
         # Create horizontal splitter for main content
         splitter = QSplitter(Qt.Orientation.Horizontal)
         
+        # Get panel widths
+        panel_min, panel_max = rm.get_panel_width()
+        
         # Left panel (File Explorer)
         self.file_explorer = FileExplorer()
-        self.file_explorer.setMaximumWidth(300)
-        self.file_explorer.setMinimumWidth(200)
+        self.file_explorer.setMaximumWidth(panel_max)
+        self.file_explorer.setMinimumWidth(panel_min)
         
         # Center area (Content)
         self.content_area = ContentArea()
         
         # Right panel (Tools)
         self.tools_panel = ToolsPanel()
-        self.tools_panel.setMaximumWidth(300)
-        self.tools_panel.setMinimumWidth(200)
+        self.tools_panel.setMaximumWidth(panel_max)
+        self.tools_panel.setMinimumWidth(panel_min)
         
         # Add panels to splitter
         splitter.addWidget(self.file_explorer)
         splitter.addWidget(self.content_area)
         splitter.addWidget(self.tools_panel)
         
-        # Set splitter proportions
-        splitter.setSizes([250, 900, 250])
+        # Set responsive splitter proportions based on screen size
+        if rm.breakpoint == "small":
+            # On small screens, give more space to content
+            splitter.setSizes([panel_min, window_size[0] - (2 * panel_min), panel_min])
+        else:
+            # On larger screens, use balanced proportions
+            content_width = window_size[0] - (2 * panel_max)
+            splitter.setSizes([panel_max, content_width, panel_max])
         
         # Status bar
         self.status_bar = StatusBarWidget()
@@ -170,6 +191,24 @@ class RenderwareModdingSuite(QMainWindow):
         prev_tab_action.triggered.connect(self.switch_to_previous_tab)
         window_menu.addAction(prev_tab_action)
         
+        window_menu.addSeparator()
+        
+        # UI Scale options
+        zoom_in_action = QAction('Zoom &In', self)
+        zoom_in_action.setShortcut('Ctrl++')
+        zoom_in_action.triggered.connect(self.zoom_in)
+        window_menu.addAction(zoom_in_action)
+        
+        zoom_out_action = QAction('Zoom &Out', self)
+        zoom_out_action.setShortcut('Ctrl+-')
+        zoom_out_action.triggered.connect(self.zoom_out)
+        window_menu.addAction(zoom_out_action)
+        
+        reset_zoom_action = QAction('&Reset Zoom', self)
+        reset_zoom_action.setShortcut('Ctrl+0')
+        reset_zoom_action.triggered.connect(self.reset_zoom)
+        window_menu.addAction(reset_zoom_action)
+        
         # Help menu
         help_menu = menubar.addMenu('&Help')
         
@@ -252,7 +291,7 @@ class RenderwareModdingSuite(QMainWindow):
             • IPL (Placements)</p>
             
             <p><b>Version:</b> 1.0<br>
-            <b>Frontend:</b> PyQt6</p>"""
+            <b>Frontend:</b> PySide6</p>"""
         )
     
     def update_memory_usage(self):
@@ -275,43 +314,118 @@ class RenderwareModdingSuite(QMainWindow):
         """Handle application close event"""
         self.status_bar.set_status("Shutting down...")
         event.accept()
+    
+    def zoom_in(self):
+        """Increase UI scale"""
+        rm = get_responsive_manager()
+        rm.scale_factor = min(2.0, rm.scale_factor * 1.1)
+        self.refresh_ui_scaling()
+        self.status_bar.show_success(f"Zoom increased to {rm.scale_factor:.1f}x")
+    
+    def zoom_out(self):
+        """Decrease UI scale"""
+        rm = get_responsive_manager()
+        rm.scale_factor = max(0.5, rm.scale_factor * 0.9)
+        self.refresh_ui_scaling()
+        self.status_bar.show_success(f"Zoom decreased to {rm.scale_factor:.1f}x")
+    
+    def reset_zoom(self):
+        """Reset UI scale to default"""
+        rm = get_responsive_manager()
+        rm.scale_factor = rm._calculate_scale_factor()  # Reset to calculated default
+        self.refresh_ui_scaling()
+        self.status_bar.show_success(f"Zoom reset to {rm.scale_factor:.1f}x")
+    
+    def refresh_ui_scaling(self):
+        """Refresh the UI with new scaling"""
+        try:
+            # Reapply the stylesheet with new scaling
+            theme = ModernDarkTheme()
+            QApplication.instance().setStyleSheet(theme.get_main_stylesheet())
+            
+            # Reapply dark palette to ensure theme consistency
+            theme.apply_dark_palette(QApplication.instance())
+            
+            # Update font
+            rm = get_responsive_manager()
+            font_config = rm.get_font_config()
+            new_font = QFont("Fira Code", font_config['body']['size'])
+            QApplication.instance().setFont(new_font)
+            
+            print(f"🎨 UI refreshed with scale factor: {rm.scale_factor:.2f}")
+        except Exception as e:
+            print(f"⚠️ Error refreshing UI scaling: {e}")
 
 
 def main():
     """Main application entry point"""
+    # Set critical Qt attributes before creating QApplication to force dark theme
+    os.environ['QT_FONT_DPI'] = '96'  # Force consistent DPI
+    os.environ['QT_SCALE_FACTOR'] = '1'  # Prevent auto-scaling issues
+    
+    # Force dark theme independent of system theme
+    os.environ['QT_QPA_PLATFORM_THEME'] = ''  # Disable system theme integration
+    os.environ['QT_STYLE_OVERRIDE'] = 'Fusion'  # Use Fusion as base style
+    os.environ['QT_AUTO_SCREEN_SCALE_FACTOR'] = '0'  # Disable auto-scaling
+    
+    # Additional environment variables to prevent system theme interference
+    os.environ.pop('QT_QPA_PLATFORMTHEME', None)  # Remove any existing platform theme
+    os.environ.pop('QT_QUICK_CONTROLS_STYLE', None)  # Remove quick controls style
+    os.environ.pop('QT_QUICK_CONTROLS_MATERIAL_THEME', None)  # Remove material theme
+    
     app = QApplication(sys.argv)
+    
+    # Set application properties
+    app.setApplicationName("Renderware Modding Suite")
+    app.setApplicationVersion("1.0")
+    app.setOrganizationName("GTA Modding Community")
     
     # Set application icon globally
     try:
         # Try to find icon in different possible locations
         possible_paths = [
-            # When running as executable
-            os.path.join(os.path.dirname(sys.executable), "icon.ico"),
-            # When running from source
+            os.path.join(os.path.dirname(sys.executable), "icon.ico") if getattr(sys, 'frozen', False) else None,
             os.path.join(os.path.dirname(__file__), "..", "icon.ico"),
-            # Alternative source location
-            os.path.join(os.path.dirname(__file__), "..", "..", "icon.ico"),
-            # Current working directory
             "icon.ico"
         ]
         
-        icon_path = None
         for path in possible_paths:
-            if os.path.exists(path):
-                icon_path = path
-                break
-        
-        if icon_path:
-            app_icon = QIcon(icon_path)
-            if not app_icon.isNull():
-                app.setWindowIcon(app_icon)
-                print(f"✅ Global application icon set from: {icon_path}")
+            if path and os.path.exists(path):
+                app_icon = QIcon(path)
+                if not app_icon.isNull():
+                    app.setWindowIcon(app_icon)
+                    print(f"✅ Global application icon set from: {path}")
+                    break
     except Exception as e:
         print(f"⚠️ Error setting global application icon: {e}")
     
     # Apply modern dark theme
     theme = ModernDarkTheme()
     app.setStyleSheet(theme.get_main_stylesheet())
+    
+    # Force dark palette to override any system theme interference
+    theme.apply_dark_palette(app)
+    print("✅ Dark theme applied successfully")
+    
+    # Set responsive font with fallbacks
+    try:
+        rm = get_responsive_manager()
+        font_config = rm.get_font_config()
+        
+        font_families = ["Fira Code", "Consolas", "Courier New", "monospace"]
+        for font_family in font_families:
+            professional_font = QFont(font_family, font_config['body']['size'])
+            if professional_font.exactMatch():
+                app.setFont(professional_font)
+                print(f"✅ Font set to: {font_family}")
+                break
+        else:
+            professional_font = QFont("monospace", font_config['body']['size'])
+            app.setFont(professional_font)
+            print("⚠️ Using system default monospace font")
+            
+    except Exception as e:
+        print(f"⚠️ Error setting font: {e}")
     
     # Create and show main window
     window = RenderwareModdingSuite()

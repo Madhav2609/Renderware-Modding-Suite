@@ -3,26 +3,34 @@ Tools Panel Widget for Renderware Modding Suite
 Contains various modding tools and operations
 """
 
-from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QGroupBox, 
+from PySide6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QGroupBox, 
                             QPushButton, QComboBox, QMenu)
-from PyQt6.QtCore import pyqtSignal, QPoint
+from PySide6.QtCore import Signal, QPoint
+from .responsive_utils import get_responsive_manager
 
 
 class ToolsPanel(QWidget):
     """Panel containing modding tools and operations"""
     
-    toolRequested = pyqtSignal(str, dict)  # Signal when tool is requested (tool_name, params)
+    toolRequested = Signal(str, dict)  # Signal when tool is requested (tool_name, params)
     
     def __init__(self):
         super().__init__()
         self.setup_ui()
     
     def setup_ui(self):
-        layout = QVBoxLayout()
+        """Setup the tools panel UI with responsive sizing"""
+        rm = get_responsive_manager()
+        fonts = rm.get_font_config()
+        spacing = rm.get_spacing_config()
         
-        # Header
+        layout = QVBoxLayout()
+        layout.setSpacing(spacing['medium'])
+        
+        # Header with responsive font
         header_label = QLabel("🔧 Renderware Modding Tools")
-        header_label.setStyleSheet("font-weight: bold; font-size: 14px; padding: 5px;")
+        header_label.setObjectName("titleLabel")
+        header_label.setStyleSheet(f"font-weight: bold; font-size: {fonts['header']['size']}px; padding: {spacing['small']}px;")
         layout.addWidget(header_label)
         
         # File format editors
@@ -41,9 +49,13 @@ class ToolsPanel(QWidget):
         self.setLayout(layout)
     
     def create_file_editors(self, layout):
-        """Create file format editors"""
+        """Create file format editors with responsive sizing"""
+        rm = get_responsive_manager()
+        spacing = rm.get_spacing_config()
+        
         file_group = QGroupBox("📁 File Format Editors")
         file_layout = QVBoxLayout()
+        file_layout.setSpacing(spacing['small'])
         
         # IMG Editor
         img_btn = QPushButton("📦 IMG Editor")
