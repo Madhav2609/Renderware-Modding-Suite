@@ -3,11 +3,38 @@ Modern dark theme styles for the Renderware Modding Suite
 Inspired by VS Code and other modern development environments
 """
 
+import sys
+import os
 from .responsive_utils import get_responsive_manager
+
+
+def initialize_qt_resources():
+    """Initialize Qt resources for compiled applications"""
+    if getattr(sys, 'frozen', False):
+        # Running as compiled executable
+        try:
+            # Ensure Qt plugins can be found
+            executable_dir = os.path.dirname(sys.executable)
+            qt_plugin_path = os.path.join(executable_dir, "PySide6", "plugins")
+            
+            if os.path.exists(qt_plugin_path):
+                os.environ['QT_PLUGIN_PATH'] = qt_plugin_path
+                print(f"✅ Qt plugin path set to: {qt_plugin_path}")
+            
+            # Set other Qt environment variables for stability
+            os.environ.setdefault('QT_FONT_DPI', '96')
+            os.environ.setdefault('QT_SCALE_FACTOR', '1')
+            
+        except Exception as e:
+            print(f"⚠️ Warning initializing Qt resources: {e}")
 
 
 class ModernDarkTheme:
     """Color palette for the modern dark theme"""
+    
+    def __init__(self):
+        """Initialize the theme and Qt resources"""
+        initialize_qt_resources()
     
     # Base colors
     BACKGROUND_PRIMARY = "#1e1e1e"
@@ -33,6 +60,34 @@ class ModernDarkTheme:
     BUTTON_PRIMARY = "#0e639c"
     BUTTON_HOVER = "#1177bb"
     BUTTON_PRESSED = "#005a9e"
+    
+    @staticmethod
+    def apply_dark_palette(app):
+        """Apply dark palette to the application to override system theme"""
+        from PySide6.QtGui import QPalette, QColor
+        
+        dark_palette = QPalette()
+        # Background colors
+        dark_palette.setColor(QPalette.ColorRole.Window, QColor(ModernDarkTheme.BACKGROUND_PRIMARY))
+        dark_palette.setColor(QPalette.ColorRole.WindowText, QColor(ModernDarkTheme.TEXT_PRIMARY))
+        dark_palette.setColor(QPalette.ColorRole.Base, QColor(ModernDarkTheme.BACKGROUND_SECONDARY))
+        dark_palette.setColor(QPalette.ColorRole.AlternateBase, QColor(ModernDarkTheme.BACKGROUND_TERTIARY))
+        dark_palette.setColor(QPalette.ColorRole.ToolTipBase, QColor(ModernDarkTheme.BACKGROUND_TERTIARY))
+        dark_palette.setColor(QPalette.ColorRole.ToolTipText, QColor(ModernDarkTheme.TEXT_PRIMARY))
+        dark_palette.setColor(QPalette.ColorRole.Text, QColor(ModernDarkTheme.TEXT_PRIMARY))
+        dark_palette.setColor(QPalette.ColorRole.Button, QColor(ModernDarkTheme.BUTTON_PRIMARY))
+        dark_palette.setColor(QPalette.ColorRole.ButtonText, QColor(ModernDarkTheme.TEXT_PRIMARY))
+        dark_palette.setColor(QPalette.ColorRole.BrightText, QColor(ModernDarkTheme.TEXT_ACCENT))
+        # Selection colors
+        dark_palette.setColor(QPalette.ColorRole.Link, QColor(ModernDarkTheme.TEXT_ACCENT))
+        dark_palette.setColor(QPalette.ColorRole.Highlight, QColor(ModernDarkTheme.TEXT_ACCENT))
+        dark_palette.setColor(QPalette.ColorRole.HighlightedText, QColor("#ffffff"))
+        # Disabled colors
+        dark_palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.WindowText, QColor(ModernDarkTheme.TEXT_SECONDARY))
+        dark_palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.Text, QColor(ModernDarkTheme.TEXT_SECONDARY))
+        dark_palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.ButtonText, QColor(ModernDarkTheme.TEXT_SECONDARY))
+        
+        app.setPalette(dark_palette)
     
     @staticmethod
     def get_main_stylesheet():

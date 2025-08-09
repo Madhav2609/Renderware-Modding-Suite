@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (QWidget, QHBoxLayout, QLabel, QProgressBar,
                             QPushButton)
 from PySide6.QtCore import Qt, QTimer
 from .responsive_utils import get_responsive_manager
+from .styles import ModernDarkTheme
 
 
 class StatusBarWidget(QWidget):
@@ -32,11 +33,11 @@ class StatusBarWidget(QWidget):
         
         # Status message label with responsive font
         self.status_label = QLabel("Ready")
-        self.status_label.setStyleSheet(f"color: #61dafb; font-weight: bold; font-size: {fonts['status']['size']}px;")
+        self.status_label.setStyleSheet(f"color: {ModernDarkTheme.TEXT_ACCENT}; font-weight: bold; font-size: {fonts['status']['size']}px;")
         
         # File info label with responsive font
         self.file_label = QLabel("No file loaded")
-        self.file_label.setStyleSheet(f"color: #888; font-size: {fonts['status']['size']}px;")
+        self.file_label.setStyleSheet(f"color: {ModernDarkTheme.TEXT_SECONDARY}; font-size: {fonts['status']['size']}px;")
         
         # Progress bar (hidden by default) with responsive width
         self.progress_bar = QProgressBar()
@@ -45,7 +46,7 @@ class StatusBarWidget(QWidget):
         
         # Memory usage with responsive font
         self.memory_label = QLabel("Memory: 0 MB")
-        self.memory_label.setStyleSheet(f"color: #888; font-size: {fonts['small']['size']}px;")
+        self.memory_label.setStyleSheet(f"color: {ModernDarkTheme.TEXT_SECONDARY}; font-size: {fonts['small']['size']}px;")
         
         # Add widgets to layout
         layout.addWidget(self.status_label)
@@ -111,17 +112,17 @@ class StatusBarWidget(QWidget):
     def show_error(self, message):
         """Show error status"""
         self.status_label.setText(f"❌ {message}")
-        self.status_label.setStyleSheet("color: #ff6b6b; font-weight: bold;")
+        self.status_label.setStyleSheet(f"color: {ModernDarkTheme.TEXT_ERROR}; font-weight: bold;")
         self.message_timer.start(5000)  # Show error for 5 seconds
     
     def show_success(self, message):
         """Show success status"""
         self.status_label.setText(f"✅ {message}")
-        self.status_label.setStyleSheet("color: #51cf66; font-weight: bold;")
+        self.status_label.setStyleSheet(f"color: {ModernDarkTheme.TEXT_SUCCESS}; font-weight: bold;")
         self.message_timer.start(3000)  # Show success for 3 seconds
     
     def show_warning(self, message):
         """Show warning status"""
         self.status_label.setText(f"⚠️ {message}")
-        self.status_label.setStyleSheet("color: #ffd43b; font-weight: bold;")
+        self.status_label.setStyleSheet(f"color: {ModernDarkTheme.TEXT_WARNING}; font-weight: bold;")
         self.message_timer.start(4000)  # Show warning for 4 seconds

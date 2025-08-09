@@ -30,7 +30,7 @@ jobs:
 
       - name: Build executable with Nuitka
         run: |
-          python build_simple.py
+          python build.py
 
       - name: Archive the build artifact
         run: |

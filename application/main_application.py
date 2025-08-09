@@ -9,7 +9,7 @@ from pathlib import Path
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                             QHBoxLayout, QSplitter, QMenuBar, QMenu, QMessageBox)
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QAction, QIcon, QFont
+from PySide6.QtGui import QAction, QIcon, QFont, QPalette, QColor
 
 # Import modular components
 from application.styles import ModernDarkTheme
@@ -28,10 +28,12 @@ class RenderwareModdingSuite(QMainWindow):
         self.setup_ui()
         self.setup_connections()
         
+        
         # Memory monitoring timer
         self.memory_timer = QTimer()
         self.memory_timer.timeout.connect(self.update_memory_usage)
         self.memory_timer.start(5000)  # Update every 5 seconds
+    
     
     def setup_ui(self):
         """Setup the user interface with responsive sizing"""
@@ -341,6 +343,9 @@ class RenderwareModdingSuite(QMainWindow):
             theme = ModernDarkTheme()
             QApplication.instance().setStyleSheet(theme.get_main_stylesheet())
             
+            # Reapply dark palette to ensure theme consistency
+            theme.apply_dark_palette(QApplication.instance())
+            
             # Update font
             rm = get_responsive_manager()
             font_config = rm.get_font_config()
@@ -354,45 +359,73 @@ class RenderwareModdingSuite(QMainWindow):
 
 def main():
     """Main application entry point"""
+    # Set critical Qt attributes before creating QApplication to force dark theme
+    os.environ['QT_FONT_DPI'] = '96'  # Force consistent DPI
+    os.environ['QT_SCALE_FACTOR'] = '1'  # Prevent auto-scaling issues
+    
+    # Force dark theme independent of system theme
+    os.environ['QT_QPA_PLATFORM_THEME'] = ''  # Disable system theme integration
+    os.environ['QT_STYLE_OVERRIDE'] = 'Fusion'  # Use Fusion as base style
+    os.environ['QT_AUTO_SCREEN_SCALE_FACTOR'] = '0'  # Disable auto-scaling
+    
+    # Additional environment variables to prevent system theme interference
+    os.environ.pop('QT_QPA_PLATFORMTHEME', None)  # Remove any existing platform theme
+    os.environ.pop('QT_QUICK_CONTROLS_STYLE', None)  # Remove quick controls style
+    os.environ.pop('QT_QUICK_CONTROLS_MATERIAL_THEME', None)  # Remove material theme
+    
     app = QApplication(sys.argv)
+    
+    # Set application properties
+    app.setApplicationName("Renderware Modding Suite")
+    app.setApplicationVersion("1.0")
+    app.setOrganizationName("GTA Modding Community")
     
     # Set application icon globally
     try:
         # Try to find icon in different possible locations
         possible_paths = [
-            # When running as executable
-            os.path.join(os.path.dirname(sys.executable), "icon.ico"),
-            # When running from source
+            os.path.join(os.path.dirname(sys.executable), "icon.ico") if getattr(sys, 'frozen', False) else None,
             os.path.join(os.path.dirname(__file__), "..", "icon.ico"),
-            # Alternative source location
-            os.path.join(os.path.dirname(__file__), "..", "..", "icon.ico"),
-            # Current working directory
             "icon.ico"
         ]
         
-        icon_path = None
         for path in possible_paths:
-            if os.path.exists(path):
-                icon_path = path
-                break
-        
-        if icon_path:
-            app_icon = QIcon(icon_path)
-            if not app_icon.isNull():
-                app.setWindowIcon(app_icon)
-                print(f"✅ Global application icon set from: {icon_path}")
+            if path and os.path.exists(path):
+                app_icon = QIcon(path)
+                if not app_icon.isNull():
+                    app.setWindowIcon(app_icon)
+                    print(f"✅ Global application icon set from: {path}")
+                    break
     except Exception as e:
         print(f"⚠️ Error setting global application icon: {e}")
     
-    # Apply modern dark theme with responsive sizing
+    # Apply modern dark theme
     theme = ModernDarkTheme()
     app.setStyleSheet(theme.get_main_stylesheet())
     
-    # Set responsive font
-    rm = get_responsive_manager()
-    font_config = rm.get_font_config()
-    professional_font = QFont("Fira Code", font_config['body']['size'])
-    app.setFont(professional_font)
+    # Force dark palette to override any system theme interference
+    theme.apply_dark_palette(app)
+    print("✅ Dark theme applied successfully")
+    
+    # Set responsive font with fallbacks
+    try:
+        rm = get_responsive_manager()
+        font_config = rm.get_font_config()
+        
+        font_families = ["Fira Code", "Consolas", "Courier New", "monospace"]
+        for font_family in font_families:
+            professional_font = QFont(font_family, font_config['body']['size'])
+            if professional_font.exactMatch():
+                app.setFont(professional_font)
+                print(f"✅ Font set to: {font_family}")
+                break
+        else:
+            professional_font = QFont("monospace", font_config['body']['size'])
+            app.setFont(professional_font)
+            print("⚠️ Using system default monospace font")
+            
+    except Exception as e:
+        print(f"⚠️ Error setting font: {e}")
     
     # Create and show main window
     window = RenderwareModdingSuite()

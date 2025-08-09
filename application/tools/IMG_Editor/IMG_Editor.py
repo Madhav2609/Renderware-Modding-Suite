@@ -14,6 +14,7 @@ from pathlib import Path
 
 from application.common.message_box import message_box
 from application.responsive_utils import get_responsive_manager
+from application.styles import ModernDarkTheme
 from .img_controller import IMGController
 
 
@@ -131,25 +132,25 @@ class IMGEntriesTable(QTableWidget):
         # Add responsive styling
         self.setStyleSheet(f"""
             QTableWidget {{
-                background-color: #2d2d2d;
-                gridline-color: #444;
-                border: 1px solid #555;
+                background-color: {ModernDarkTheme.BACKGROUND_SECONDARY};
+                gridline-color: {ModernDarkTheme.BORDER_SECONDARY};
+                border: 1px solid {ModernDarkTheme.BORDER_PRIMARY};
                 border-radius: 4px;
                 font-size: {fonts['body']['size']}px;
             }}
             QTableWidget::item {{
                 padding: {spacing['small']}px;
-                border-bottom: 1px solid #444;
+                border-bottom: 1px solid {ModernDarkTheme.BORDER_SECONDARY};
             }}
             QTableWidget::item:selected {{
-                background-color: #007acc;
+                background-color: {ModernDarkTheme.TEXT_ACCENT};
                 color: white;
             }}
             QHeaderView::section {{
-                background-color: #333;
+                background-color: {ModernDarkTheme.BACKGROUND_TERTIARY};
                 color: white;
                 padding: {spacing['small']}px;
-                border: 1px solid #555;
+                border: 1px solid {ModernDarkTheme.BORDER_PRIMARY};
                 font-weight: bold;
                 font-size: {fonts['body']['size']}px;
             }}
@@ -350,22 +351,22 @@ class FilterPanel(QWidget):
         
         combo_style = f"""
             QComboBox {{
-                background-color: #333;
+                background-color: {ModernDarkTheme.BACKGROUND_TERTIARY};
                 color: white;
-                border: 1px solid #555;
+                border: 1px solid {ModernDarkTheme.BORDER_PRIMARY};
                 border-radius: 3px;
                 padding: {spacing['small']}px;
                 min-width: {button_size[0] - 20}px;
                 font-size: {fonts['body']['size']}px;
             }}
             QComboBox:hover {{
-                border: 1px solid #007acc;
+                border: 1px solid {ModernDarkTheme.TEXT_ACCENT};
             }}
             QComboBox::drop-down {{
                 subcontrol-origin: padding;
                 subcontrol-position: top right;
                 width: {spacing['medium'] + 5}px;
-                border-left: 1px solid #555;
+                border-left: 1px solid {ModernDarkTheme.BORDER_PRIMARY};
             }}
         """
         self.type_combo.setStyleSheet(combo_style)
@@ -373,15 +374,15 @@ class FilterPanel(QWidget):
         
         self.search_edit.setStyleSheet(f"""
             QLineEdit {{
-                background-color: #333;
+                background-color: {ModernDarkTheme.BACKGROUND_TERTIARY};
                 color: white;
-                border: 1px solid #555;
+                border: 1px solid {ModernDarkTheme.BORDER_PRIMARY};
                 border-radius: 3px;
                 padding: {spacing['small']}px;
                 font-size: {fonts['body']['size']}px;
             }}
             QLineEdit:focus {{
-                border: 1px solid #007acc;
+                border: 1px solid {ModernDarkTheme.TEXT_ACCENT};
             }}
         """)
         
@@ -729,30 +730,30 @@ class ImgEditorTool(QWidget):
         
         self.archive_tabs.setStyleSheet(f"""
             QTabWidget::pane {{
-                border: 1px solid #444;
+                border: 1px solid {ModernDarkTheme.BORDER_SECONDARY};
                 border-radius: 4px;
-                background-color: #2d2d2d;
+                background-color: {ModernDarkTheme.BACKGROUND_SECONDARY};
             }}
             QTabBar::tab {{
-                background-color: #333;
-                color: #ccc;
+                background-color: {ModernDarkTheme.BACKGROUND_TERTIARY};
+                color: {ModernDarkTheme.TEXT_PRIMARY};
                 min-width: {min_tab_width}px;
                 max-width: {max_tab_width}px;
                 padding: {spacing['small']}px {spacing['medium']}px;
                 margin-right: 2px;
-                border: 1px solid #444;
+                border: 1px solid {ModernDarkTheme.BORDER_SECONDARY};
                 border-bottom: none;
                 border-top-left-radius: 4px;
                 border-top-right-radius: 4px;
                 font-size: {fonts['body']['size']}px;
             }}
             QTabBar::tab:selected {{
-                background-color: #2d2d2d;
+                background-color: {ModernDarkTheme.BACKGROUND_SECONDARY};
                 color: white;
-                border-bottom: 2px solid #007acc;
+                border-bottom: 2px solid {ModernDarkTheme.TEXT_ACCENT};
             }}
             QTabBar::tab:hover {{
-                background-color: #3a3a3a;
+                background-color: {ModernDarkTheme.HOVER_COLOR};
             }}
         """)
         
@@ -777,12 +778,12 @@ class ImgEditorTool(QWidget):
         empty_widget.setFrameStyle(QFrame.Shape.StyledPanel)
         empty_widget.setStyleSheet(f"""
             QFrame {{
-                background-color: #2d2d2d;
-                border: 2px dashed #555;
+                background-color: {ModernDarkTheme.BACKGROUND_SECONDARY};
+                border: 2px dashed {ModernDarkTheme.BORDER_PRIMARY};
                 border-radius: 8px;
             }}
             QLabel {{
-                color: #888;
+                color: {ModernDarkTheme.TEXT_SECONDARY};
                 font-size: {fonts['body']['size']}px;
             }}
         """)
@@ -793,15 +794,15 @@ class ImgEditorTool(QWidget):
         icon_label = QLabel("📁")
         icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         icon_size = fonts['header']['size'] * 3  # Scale icon with header font
-        icon_label.setStyleSheet(f"font-size: {icon_size}px; color: #555;")
+        icon_label.setStyleSheet(f"font-size: {icon_size}px; color: {ModernDarkTheme.BORDER_PRIMARY};")
         
         text_label = QLabel("No IMG archives open")
         text_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        text_label.setStyleSheet(f"font-size: {fonts['subheader']['size']}px; color: #888; margin: {spacing['medium']}px;")
+        text_label.setStyleSheet(f"font-size: {fonts['subheader']['size']}px; color: {ModernDarkTheme.TEXT_SECONDARY}; margin: {spacing['medium']}px;")
         
         hint_label = QLabel("Use 'Open IMG' or 'Open Multiple' to load archives")
         hint_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        hint_label.setStyleSheet(f"font-size: {fonts['small']['size']}px; color: #666; margin: {spacing['small']}px;")
+        hint_label.setStyleSheet(f"font-size: {fonts['small']['size']}px; color: {ModernDarkTheme.TEXT_SECONDARY}; margin: {spacing['small']}px;")
         
         layout.addWidget(icon_label)
         layout.addWidget(text_label)
@@ -826,14 +827,14 @@ class ImgEditorTool(QWidget):
     def create_status_info(self, parent_layout):
         """Create status information at bottom"""
         self.status_label = QLabel("Ready | No archives open")
-        self.status_label.setStyleSheet("""
-            QLabel {
-                background-color: #333;
-                color: #ccc;
+        self.status_label.setStyleSheet(f"""
+            QLabel {{
+                background-color: {ModernDarkTheme.BACKGROUND_TERTIARY};
+                color: {ModernDarkTheme.TEXT_PRIMARY};
                 padding: 5px 10px;
-                border-top: 1px solid #555;
+                border-top: 1px solid {ModernDarkTheme.BORDER_PRIMARY};
                 font-size: 11px;
-            }
+            }}
         """)
         parent_layout.addWidget(self.status_label)
     
@@ -1073,31 +1074,31 @@ class ImgEditorTool(QWidget):
         tab_widget.setTabPosition(QTabWidget.TabPosition.North)
         
         # Set style for modern tabs
-        tab_widget.setStyleSheet("""
-            QTabWidget::pane {
-                border: 1px solid #444;
+        tab_widget.setStyleSheet(f"""
+            QTabWidget::pane {{
+                border: 1px solid {ModernDarkTheme.BORDER_SECONDARY};
                 border-radius: 3px;
-                background-color: #2d2d2d;
-            }
-            QTabBar::tab {
-                background-color: #333;
-                color: #ccc;
+                background-color: {ModernDarkTheme.BACKGROUND_SECONDARY};
+            }}
+            QTabBar::tab {{
+                background-color: {ModernDarkTheme.BACKGROUND_TERTIARY};
+                color: {ModernDarkTheme.TEXT_PRIMARY};
                 min-width: 80px;
                 padding: 5px 10px;
                 margin-right: 1px;
-                border: 1px solid #444;
+                border: 1px solid {ModernDarkTheme.BORDER_SECONDARY};
                 border-bottom: none;
                 border-top-left-radius: 4px;
                 border-top-right-radius: 4px;
-            }
-            QTabBar::tab:selected {
-                background-color: #2d2d2d;
+            }}
+            QTabBar::tab:selected {{
+                background-color: {ModernDarkTheme.BACKGROUND_SECONDARY};
                 color: white;
-                border-bottom: 2px solid #007acc;
-            }
-            QTabBar::tab:hover {
-                background-color: #3a3a3a;
-            }
+                border-bottom: 2px solid {ModernDarkTheme.TEXT_ACCENT};
+            }}
+            QTabBar::tab:hover {{
+                background-color: {ModernDarkTheme.HOVER_COLOR};
+            }}
         """)
         
         # File Operations Tab
