@@ -25,7 +25,7 @@ The Renderware Modding Suite is designed to be a comprehensive solution for modd
 
 ### Core Features
 
-- **Modern and Intuitive UI:** A sleek, dark-themed interface built with PyQt6 for a smooth user experience.
+- **Modern and Intuitive UI:** A sleek, dark-themed interface built with PySide6 for a smooth user experience.
 - **Modular Tool System:** The application is built around a central tool registry, allowing new modding tools to be seamlessly integrated.
 - **File Explorer:** An integrated file explorer for easy navigation and access to game files.
 - **Real-time Memory Monitoring:** A status bar widget that displays the application's current memory usage.
@@ -64,10 +64,10 @@ The application follows a modern, modular architecture to ensure scalability and
 ## Technical Details
 
 - **Language:** Python 3
-- **UI Framework:** PyQt6
+- **UI Framework:** PySide6
 - **Styling:** A custom dark theme (`styles.py`) that uses `darkdetect` to match the system's theme.
 - **Dependencies:**
-  - `PyQt6`: For the graphical user interface.
+  - `PySide6`: For the graphical user interface.
   - `darkdetect`: To detect the operating system's theme.
   - `psutil`: For monitoring system memory usage.
 

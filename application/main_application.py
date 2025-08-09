@@ -6,10 +6,10 @@ Coordinates all components and manages application state
 import sys
 import os
 from pathlib import Path
-from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
+from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                             QHBoxLayout, QSplitter, QMenuBar, QMenu, QMessageBox)
-from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QAction, QIcon, QFont
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtGui import QAction, QIcon, QFont
 
 # Import modular components
 from application.styles import ModernDarkTheme
@@ -289,7 +289,7 @@ class RenderwareModdingSuite(QMainWindow):
             • IPL (Placements)</p>
             
             <p><b>Version:</b> 1.0<br>
-            <b>Frontend:</b> PyQt6</p>"""
+            <b>Frontend:</b> PySide6</p>"""
         )
     
     def update_memory_usage(self):

@@ -4,17 +4,17 @@ Handles file browsing and recent files management
 """
 
 import os
-from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QGroupBox, 
+from PySide6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QGroupBox, 
                             QPushButton, QListWidget, QListWidgetItem, 
                             QFileDialog)
-from PyQt6.QtCore import Qt, pyqtSignal
+from PySide6.QtCore import Qt, Signal
 from .responsive_utils import get_responsive_manager
 
 
 class FileExplorer(QWidget):
     """Simple file browser for opening modding files"""
     
-    fileSelected = pyqtSignal(str)  # Signal when file is selected
+    fileSelected = Signal(str)  # Signal when file is selected
     
     def __init__(self):
         super().__init__()

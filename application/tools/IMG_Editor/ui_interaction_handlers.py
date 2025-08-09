@@ -3,7 +3,7 @@ UI interaction handlers for the IMG Editor.
 These methods implement the direct UI interactions that connect the ImgEditorTool class to the controller.
 """
 
-from PyQt6.QtWidgets import QFileDialog, QDialog, QRadioButton, QDialogButtonBox, QVBoxLayout, QMessageBox
+from PySide6.QtWidgets import QFileDialog, QDialog, QRadioButton, QDialogButtonBox, QVBoxLayout, QMessageBox
 
 def _open_img_file(self):
     """Open an IMG file"""

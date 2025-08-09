@@ -3,13 +3,13 @@ IMG Editor Tool for Renderware Modding Suite
 Handles IMG archive file operations and management
 """
 
-from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
+from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
                             QGroupBox, QPushButton, QSplitter, QTreeWidget,
                             QTreeWidgetItem, QLineEdit, QComboBox, QProgressBar,
                             QScrollArea, QSizePolicy, QTableWidget, QTableWidgetItem,
                             QHeaderView, QFileDialog, QGridLayout, QTabWidget,
                             QToolButton, QMenu, QFrame)
-from PyQt6.QtCore import Qt, pyqtSignal
+from PySide6.QtCore import Qt, Signal
 from pathlib import Path
 
 from application.common.message_box import message_box
@@ -106,8 +106,8 @@ class IMGFileInfoPanel(QGroupBox):
 
 class IMGEntriesTable(QTableWidget):
     """Enhanced table widget for IMG entries"""
-    entry_double_clicked = pyqtSignal(object)
-    entry_selected = pyqtSignal(object)
+    entry_double_clicked = Signal(object)
+    entry_selected = Signal(object)
     
     def __init__(self, parent=None):
         """Initialize the table with responsive styling"""
@@ -304,7 +304,7 @@ class IMGEntriesTable(QTableWidget):
 
 class FilterPanel(QWidget):
     """Filter panel for IMG entries"""
-    filter_changed = pyqtSignal(str, str, str)  # text_filter, type_filter, rw_version_filter
+    filter_changed = Signal(str, str, str)  # text_filter, type_filter, rw_version_filter
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -401,9 +401,9 @@ class IMGArchiveTab(QWidget):
     """Individual tab for an IMG archive"""
     
     # Signals
-    archive_modified = pyqtSignal(str)  # Signal when archive is modified
-    entries_selected = pyqtSignal(list)  # Signal when entries are selected
-    action_requested = pyqtSignal(str, object)  # Signal for requesting actions from parent
+    archive_modified = Signal(str)  # Signal when archive is modified
+    entries_selected = Signal(list)  # Signal when entries are selected
+    action_requested = Signal(str, object)  # Signal for requesting actions from parent
     
     def __init__(self, img_archive, parent=None):
         super().__init__(parent)
@@ -549,8 +549,8 @@ class ImgEditorTool(QWidget):
     """IMG Editor tool interface with multi-archive tab support"""
     
     # Signals for tool actions
-    tool_action = pyqtSignal(str, str)  # action_name, parameters
-    archive_switched = pyqtSignal(object)  # Signal when active archive changes
+    tool_action = Signal(str, str)  # action_name, parameters
+    archive_switched = Signal(object)  # Signal when active archive changes
     
     def __init__(self, parent=None):
         super().__init__(parent)

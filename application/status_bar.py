@@ -3,9 +3,9 @@ Status Bar Widget for Renderware Modding Suite
 Shows application status, file information, and progress
 """
 
-from PyQt6.QtWidgets import (QWidget, QHBoxLayout, QLabel, QProgressBar,
+from PySide6.QtWidgets import (QWidget, QHBoxLayout, QLabel, QProgressBar,
                             QPushButton)
-from PyQt6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt, QTimer
 from .responsive_utils import get_responsive_manager
 
 

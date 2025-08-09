@@ -4,9 +4,9 @@ Handles DPI scaling, font sizing, and UI element sizing for different screen siz
 """
 
 import sys
-from PyQt6.QtWidgets import QApplication
-from PyQt6.QtCore import QRect
-from PyQt6.QtGui import QScreen, QFont
+from PySide6.QtWidgets import QApplication
+from PySide6.QtCore import QRect
+from PySide6.QtGui import QScreen, QFont
 from typing import Dict, Tuple
 
 

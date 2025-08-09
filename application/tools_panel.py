@@ -3,16 +3,16 @@ Tools Panel Widget for Renderware Modding Suite
 Contains various modding tools and operations
 """
 
-from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QGroupBox, 
+from PySide6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QGroupBox, 
                             QPushButton, QComboBox, QMenu)
-from PyQt6.QtCore import pyqtSignal, QPoint
+from PySide6.QtCore import Signal, QPoint
 from .responsive_utils import get_responsive_manager
 
 
 class ToolsPanel(QWidget):
     """Panel containing modding tools and operations"""
     
-    toolRequested = pyqtSignal(str, dict)  # Signal when tool is requested (tool_name, params)
+    toolRequested = Signal(str, dict)  # Signal when tool is requested (tool_name, params)
     
     def __init__(self):
         super().__init__()
