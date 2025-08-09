@@ -13,6 +13,7 @@ from PyQt6.QtCore import Qt, pyqtSignal
 from pathlib import Path
 
 from application.common.message_box import message_box
+from application.responsive_utils import get_responsive_manager
 from .img_controller import IMGController
 
 
@@ -24,6 +25,11 @@ class IMGFileInfoPanel(QGroupBox):
         self._setup_ui()
         
     def _setup_ui(self):
+        """Setup the UI with responsive sizing"""
+        rm = get_responsive_manager()
+        fonts = rm.get_font_config()
+        spacing = rm.get_spacing_config()
+        
         layout = QVBoxLayout(self)
         
         # File info labels
@@ -46,13 +52,13 @@ class IMGFileInfoPanel(QGroupBox):
         layout.addWidget(self.rw_files_label)
         layout.addWidget(self.rw_versions_label)
         
-        # Apply modern styling
-        self.setStyleSheet("""
-            QLabel {
+        # Apply responsive styling
+        self.setStyleSheet(f"""
+            QLabel {{
                 color: white;
-                font-size: 12px;
-                padding: 2px;
-            }
+                font-size: {fonts['body']['size']}px;
+                padding: {spacing['small']}px;
+            }}
         """)
     
     def update_info(self, img_info=None, rw_summary=None):
@@ -104,7 +110,12 @@ class IMGEntriesTable(QTableWidget):
     entry_selected = pyqtSignal(object)
     
     def __init__(self, parent=None):
+        """Initialize the table with responsive styling"""
         super().__init__(parent)
+        rm = get_responsive_manager()
+        fonts = rm.get_font_config()
+        spacing = rm.get_spacing_config()
+        
         self.setColumnCount(7)
         self.setHorizontalHeaderLabels(['Name', 'Type', 'Size', 'Offset', 'RW Version', 'Streaming', 'Compression'])
         
@@ -117,29 +128,31 @@ class IMGEntriesTable(QTableWidget):
         header = self.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
             
-        # Add style for modern look
-        self.setStyleSheet("""
-            QTableWidget {
+        # Add responsive styling
+        self.setStyleSheet(f"""
+            QTableWidget {{
                 background-color: #2d2d2d;
                 gridline-color: #444;
                 border: 1px solid #555;
                 border-radius: 4px;
-            }
-            QTableWidget::item {
-                padding: 4px;
+                font-size: {fonts['body']['size']}px;
+            }}
+            QTableWidget::item {{
+                padding: {spacing['small']}px;
                 border-bottom: 1px solid #444;
-            }
-            QTableWidget::item:selected {
+            }}
+            QTableWidget::item:selected {{
                 background-color: #007acc;
                 color: white;
-            }
-            QHeaderView::section {
+            }}
+            QHeaderView::section {{
                 background-color: #333;
                 color: white;
-                padding: 4px;
+                padding: {spacing['small']}px;
                 border: 1px solid #555;
                 font-weight: bold;
-            }
+                font-size: {fonts['body']['size']}px;
+            }}
         """)
         
         # Connect signals
@@ -329,40 +342,47 @@ class FilterPanel(QWidget):
         self.search_edit.textChanged.connect(self._filter_changed)
         search_layout.addWidget(self.search_edit)
         
-        # Apply modern styling
-        combo_style = """
-            QComboBox {
+        # Apply responsive styling
+        rm = get_responsive_manager()
+        fonts = rm.get_font_config()
+        spacing = rm.get_spacing_config()
+        button_size = rm.get_button_size()
+        
+        combo_style = f"""
+            QComboBox {{
                 background-color: #333;
                 color: white;
                 border: 1px solid #555;
                 border-radius: 3px;
-                padding: 5px;
-                min-width: 6em;
-            }
-            QComboBox:hover {
+                padding: {spacing['small']}px;
+                min-width: {button_size[0] - 20}px;
+                font-size: {fonts['body']['size']}px;
+            }}
+            QComboBox:hover {{
                 border: 1px solid #007acc;
-            }
-            QComboBox::drop-down {
+            }}
+            QComboBox::drop-down {{
                 subcontrol-origin: padding;
                 subcontrol-position: top right;
-                width: 15px;
+                width: {spacing['medium'] + 5}px;
                 border-left: 1px solid #555;
-            }
+            }}
         """
         self.type_combo.setStyleSheet(combo_style)
         self.rw_version_combo.setStyleSheet(combo_style)
         
-        self.search_edit.setStyleSheet("""
-            QLineEdit {
+        self.search_edit.setStyleSheet(f"""
+            QLineEdit {{
                 background-color: #333;
                 color: white;
                 border: 1px solid #555;
                 border-radius: 3px;
-                padding: 5px;
-            }
-            QLineEdit:focus {
+                padding: {spacing['small']}px;
+                font-size: {fonts['body']['size']}px;
+            }}
+            QLineEdit:focus {{
                 border: 1px solid #007acc;
-            }
+            }}
         """)
         
         layout.addWidget(type_group)
@@ -649,12 +669,16 @@ class ImgEditorTool(QWidget):
     
     def setup_ui(self):
         """Setup the IMG Editor interface with tabbed archives"""
+        rm = get_responsive_manager()
+        fonts = rm.get_font_config()
+        spacing = rm.get_spacing_config()
+        
         # Main layout
         main_layout = QVBoxLayout()
         
-        # IMG Editor header
+        # IMG Editor header with responsive sizing
         header_label = QLabel("📁 IMG Editor")
-        header_label.setStyleSheet("font-weight: bold; font-size: 16px; padding: 10px;")
+        header_label.setStyleSheet(f"font-weight: bold; font-size: {fonts['header']['size']}px; padding: {spacing['medium']}px;")
         main_layout.addWidget(header_label)
         
         # Main splitter for IMG content
@@ -696,33 +720,40 @@ class ImgEditorTool(QWidget):
         self.archive_tabs.tabCloseRequested.connect(self._close_archive_tab)
         self.archive_tabs.currentChanged.connect(self._on_tab_changed)
         
-        # Set tab styling
-        self.archive_tabs.setStyleSheet("""
-            QTabWidget::pane {
+        # Set responsive tab styling
+        rm = get_responsive_manager()
+        fonts = rm.get_font_config()
+        spacing = rm.get_spacing_config()
+        min_tab_width = rm.get_scaled_size(80)
+        max_tab_width = rm.get_scaled_size(180)
+        
+        self.archive_tabs.setStyleSheet(f"""
+            QTabWidget::pane {{
                 border: 1px solid #444;
                 border-radius: 4px;
                 background-color: #2d2d2d;
-            }
-            QTabBar::tab {
+            }}
+            QTabBar::tab {{
                 background-color: #333;
                 color: #ccc;
-                min-width: 100px;
-                max-width: 200px;
-                padding: 8px 12px;
+                min-width: {min_tab_width}px;
+                max-width: {max_tab_width}px;
+                padding: {spacing['small']}px {spacing['medium']}px;
                 margin-right: 2px;
                 border: 1px solid #444;
                 border-bottom: none;
                 border-top-left-radius: 4px;
                 border-top-right-radius: 4px;
-            }
-            QTabBar::tab:selected {
+                font-size: {fonts['body']['size']}px;
+            }}
+            QTabBar::tab:selected {{
                 background-color: #2d2d2d;
                 color: white;
                 border-bottom: 2px solid #007acc;
-            }
-            QTabBar::tab:hover {
+            }}
+            QTabBar::tab:hover {{
                 background-color: #3a3a3a;
-            }
+            }}
         """)
         
         # Empty state widget
@@ -738,18 +769,22 @@ class ImgEditorTool(QWidget):
     
     def create_empty_state(self):
         """Create empty state widget when no archives are open"""
+        rm = get_responsive_manager()
+        fonts = rm.get_font_config()
+        spacing = rm.get_spacing_config()
+        
         empty_widget = QFrame()
         empty_widget.setFrameStyle(QFrame.Shape.StyledPanel)
-        empty_widget.setStyleSheet("""
-            QFrame {
+        empty_widget.setStyleSheet(f"""
+            QFrame {{
                 background-color: #2d2d2d;
                 border: 2px dashed #555;
                 border-radius: 8px;
-            }
-            QLabel {
+            }}
+            QLabel {{
                 color: #888;
-                font-size: 14px;
-            }
+                font-size: {fonts['body']['size']}px;
+            }}
         """)
         
         layout = QVBoxLayout(empty_widget)
@@ -757,15 +792,16 @@ class ImgEditorTool(QWidget):
         
         icon_label = QLabel("📁")
         icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        icon_label.setStyleSheet("font-size: 48px; color: #555;")
+        icon_size = fonts['header']['size'] * 3  # Scale icon with header font
+        icon_label.setStyleSheet(f"font-size: {icon_size}px; color: #555;")
         
         text_label = QLabel("No IMG archives open")
         text_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        text_label.setStyleSheet("font-size: 16px; color: #888; margin: 10px;")
+        text_label.setStyleSheet(f"font-size: {fonts['subheader']['size']}px; color: #888; margin: {spacing['medium']}px;")
         
         hint_label = QLabel("Use 'Open IMG' or 'Open Multiple' to load archives")
         hint_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        hint_label.setStyleSheet("font-size: 12px; color: #666; margin: 5px;")
+        hint_label.setStyleSheet(f"font-size: {fonts['small']['size']}px; color: #666; margin: {spacing['small']}px;")
         
         layout.addWidget(icon_label)
         layout.addWidget(text_label)
