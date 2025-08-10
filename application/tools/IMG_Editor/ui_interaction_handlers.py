@@ -64,28 +64,6 @@ def _close_img(self):
         
     success, message = self.img_editor.close_img()
 
-def _add_files(self):
-    """Add files to the current IMG archive"""
-    if not self.img_editor.is_img_open():
-        from application.common.message_box import message_box
-        message_box.info("No IMG file is currently open.", "No IMG Open", self)
-        return
-        
-    file_paths, _ = QFileDialog.getOpenFileNames(
-        self, "Select Files to Add", "", "All Files (*.*)"
-    )
-    
-    if not file_paths:
-        return
-        
-    success, message = self.img_editor.add_files(file_paths)
-    
-    from application.common.message_box import message_box
-    if not success:
-        message_box.error(message, "Error Adding Files", self)
-    else:
-        message_box.info(message, "Files Added", self)
-
 def _extract_selected(self):
     """Extract selected entries"""
     if not self.img_editor.is_img_open():

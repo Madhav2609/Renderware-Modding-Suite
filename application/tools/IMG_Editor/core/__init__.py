@@ -7,7 +7,6 @@ from .Core import IMGEntry, IMGArchive, SECTOR_SIZE, V2_SIGNATURE, MAX_FILENAME_
 from .File_Operations import File_Operations
 from .IMG_Operations import IMG_Operations
 from .Import_Export import Import_Export
-from .Entries_and_Selection import Entries_and_Selection
 
 __all__ = [
     'IMGEntry', 
@@ -17,6 +16,5 @@ __all__ = [
     'MAX_FILENAME_LENGTH',
     'File_Operations',
     'IMG_Operations',
-    'Import_Export',
-    'Entries_and_Selection'
+    'Import_Export'
 ]

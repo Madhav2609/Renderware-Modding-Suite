@@ -75,36 +75,8 @@ class IMG_Operations:
         # Implementation will go here
         pass
     
-    @staticmethod
-    def optimize_archive(img_archive, output_path=None):
-        """
-        Optimizes an IMG archive by sorting entries and removing wasted space.
-        
-        Args:
-            img_archive: The IMGArchive object to optimize
-            output_path: Optional path for the optimized archive. If None, overwrites the original.
-            
-        Returns:
-            A new IMGArchive object representing the optimized archive
-        """
-        # Implementation will go here
-        pass
     
-    @staticmethod
-    def defragment_archive(img_archive, output_path=None):
-        """
-        Defragments an IMG archive by reorganizing entries to remove gaps.
-        
-        Args:
-            img_archive: The IMGArchive object to defragment
-            output_path: Optional path for the defragmented archive. If None, overwrites the original.
-            
-        Returns:
-            A new IMGArchive object representing the defragmented archive
-        """
-        # Implementation will go here
-        pass
-    
+   
     @staticmethod
     def compress_archive(img_archive, output_path=None, compression_level=6):
         """
@@ -121,17 +93,3 @@ class IMG_Operations:
         # Implementation will go here
         pass
     
-    @staticmethod
-    def compare_archives(img_archive1, img_archive2):
-        """
-        Compares two IMG archives and returns differences.
-        
-        Args:
-            img_archive1: First IMGArchive object
-            img_archive2: Second IMGArchive object
-            
-        Returns:
-            Dictionary containing differences between the archives
-        """
-        # Implementation will go here
-        pass

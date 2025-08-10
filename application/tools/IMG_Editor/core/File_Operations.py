@@ -211,69 +211,6 @@ class File_Operations:
         img_archive.modified = True
         return img_archive
     
-    @staticmethod
-    def save_archive(img_archive, output_path=None):
-        """
-        Saves an IMG archive to disk.
-        
-        Args:
-            img_archive: IMGArchive object to save
-            output_path: Optional path to save to. If None, uses the archive's file_path.
-            
-        Returns:
-            True if successful, False otherwise
-        """
-        if not output_path:
-            output_path = img_archive.file_path
-            
-        if img_archive.version == 'V1':
-            # Save V1 format (separate .dir and .img files)
-            dir_path = output_path.replace('.img', '.dir')
-            
-            # Write .dir file
-            with open(dir_path, 'wb') as dir_file:
-                for entry in img_archive.entries:
-                    dir_file.write(struct.pack('<I', entry.offset))  # Offset
-                    dir_file.write(struct.pack('<I', entry.size))    # Size
-                    
-                    # Ensure name is no longer than MAX_FILENAME_LENGTH-1 bytes (leaving room for null terminator)
-                    name_bytes = entry.name.encode('ascii', errors='replace')
-                    if len(name_bytes) >= MAX_FILENAME_LENGTH:
-                        name_bytes = name_bytes[:MAX_FILENAME_LENGTH-1]
-                    
-                    # Pad with nulls to make 24 bytes
-                    name_bytes = name_bytes + b'\0' * (MAX_FILENAME_LENGTH - len(name_bytes))
-                    dir_file.write(name_bytes)
-            
-            # For V1, we're only writing the directory, the .img file needs to be written separately
-            # with the actual file data
-        else:
-            # Save V2 format (combined directory and data)
-            with open(output_path, 'wb') as img_file:
-                # Write header
-                img_file.write(V2_SIGNATURE)  # 'VER2'
-                img_file.write(struct.pack('<I', len(img_archive.entries)))  # Number of entries
-                
-                # Write directory entries
-                for entry in img_archive.entries:
-                    img_file.write(struct.pack('<I', entry.offset))  # Offset
-                    img_file.write(struct.pack('<H', entry.streaming_size))  # Streaming size
-                    img_file.write(struct.pack('<H', entry.size))  # Size in archive
-                    
-                    # Ensure name is no longer than MAX_FILENAME_LENGTH-1 bytes (leaving room for null terminator)
-                    name_bytes = entry.name.encode('ascii', errors='replace')
-                    if len(name_bytes) >= MAX_FILENAME_LENGTH:
-                        name_bytes = name_bytes[:MAX_FILENAME_LENGTH-1]
-                    
-                    # Pad with nulls to make 24 bytes
-                    name_bytes = name_bytes + b'\0' * (MAX_FILENAME_LENGTH - len(name_bytes))
-                    img_file.write(name_bytes)
-                
-                # For V2, we would write the actual file data here after the directory
-                # This would be done in a separate function when building a complete archive
-        
-        img_archive.modified = False
-        return True
     
     @staticmethod
     def close_archive(img_archive, archive_manager=None):

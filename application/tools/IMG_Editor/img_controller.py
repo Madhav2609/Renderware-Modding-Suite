@@ -16,8 +16,7 @@ from .core import (
     IMGArchive,
     File_Operations, 
     IMG_Operations,
-    Import_Export,
-    Entries_and_Selection
+    Import_Export
 )
 from .core.File_Operations import ArchiveManager
 
@@ -228,7 +227,7 @@ class IMGController(QObject):
             return []
         
         if filter_text or filter_type:
-            return Entries_and_Selection.filter_entries(self.current_img, filter_text, filter_type)
+            return self.current_img.filter_entries(filter_text, filter_type)
         
         return self.current_img.entries
     
@@ -236,21 +235,6 @@ class IMGController(QObject):
         """Sets the currently selected entries."""
         self.selected_entries = entries
     
-    def add_files(self, file_paths):
-        """Adds files to the current IMG archive."""
-        if not self.current_img:
-            return False, "No IMG file is currently open"
-        
-        try:
-            added_entries = []
-            for file_path in file_paths:
-                entry = Import_Export.import_file(self.current_img, file_path)
-                added_entries.append(entry)
-            
-            self.entries_updated.emit(self.current_img.entries)
-            return True, f"Added {len(added_entries)} file(s) to the archive"
-        except Exception as e:
-            return False, f"Error adding files: {str(e)}"
     
     def extract_selected(self, output_dir):
         """Extracts selected entries to the specified directory."""
@@ -280,7 +264,7 @@ class IMGController(QObject):
         
         try:
             for entry in self.selected_entries.copy():
-                Entries_and_Selection.remove_entry(self.current_img, entry)
+                self.current_img.delete_entry(entry)
                 self.selected_entries.remove(entry)
             
             self.entries_updated.emit(self.current_img.entries)

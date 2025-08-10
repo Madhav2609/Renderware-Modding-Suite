@@ -316,6 +316,61 @@ class IMGArchive:
         return [entry for entry in self.entries 
                 if entry.type == format_type]
     
+    def filter_entries(self, filter_text=None, filter_type=None):
+        """
+        Filters entries in an IMG archive based on name and/or type.
+        
+        Args:
+            filter_text: Text to filter names by
+            filter_type: Type to filter by
+            
+        Returns:
+            List of IMGEntry objects that match the filter
+        """
+        result = self.entries.copy()
+        
+        if filter_text:
+            filter_text = filter_text.lower()
+            result = [e for e in result if filter_text in e.name.lower()]
+            
+        if filter_type and filter_type.upper() != 'ALL':
+            result = [e for e in result if e.type == filter_type.upper()]
+            
+        return result
+    
+    def delete_entry(self, entry_or_name):
+        """
+        Removes an entry from an IMG archive, including its data from the IMG file.
+
+        Args:
+            entry_or_name: IMGEntry object or entry name to remove
+
+        Returns:
+            True if successful, False otherwise
+        """
+        entry = entry_or_name
+        if isinstance(entry_or_name, str):
+            entry = self.get_entry_by_name(entry_or_name)
+
+        if not entry or entry not in self.entries:
+            return False
+
+        # Remove the entry from the IMG file
+        if self.file_path and os.path.exists(self.file_path):
+            with open(self.file_path, 'r+b') as img_file:
+                # Calculate the byte range to clear
+                start = entry.actual_offset
+                end = start + entry.actual_size
+
+                # Move to the start position and overwrite with zeros
+                img_file.seek(start)
+                img_file.write(b'\x00' * (end - start))
+
+        # Remove the entry from the entries list
+        self.entries.remove(entry)
+        self.modified = True
+        return True
+    
     def __str__(self):
         """String representation of the IMG archive."""
         return f"IMG Archive: {Path(self.file_path).name if self.file_path else 'Not loaded'} ({self.get_version_string()}), {len(self.entries)} entries"

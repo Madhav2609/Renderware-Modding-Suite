@@ -576,15 +576,15 @@ class ImgEditorTool(QWidget):
             
             def add_files(self, file_paths):
                 # This would need to be implemented in the controller
-                return False, "Add files not implemented in controller yet"
+                return self.tool.img_controller.add_files_to_current_archive(file_paths)
             
             def extract_selected(self, output_dir):
                 # This would need to be implemented in the controller
-                return False, "Extract selected not implemented in controller yet"
-            
+                return self.tool.img_controller.extract_selected_entries(output_dir)
+
             def delete_selected(self):
                 # This would need to be implemented in the controller
-                return False, "Delete selected not implemented in controller yet"
+                return self.tool.img_controller.delete_selected()
             
             def get_img_info(self):
                 archive = self.tool.get_current_archive()
@@ -593,7 +593,10 @@ class ImgEditorTool(QWidget):
                 return None
             
             def get_rw_version_summary(self):
-                # This would need to be implemented
+                # Get the read/write version summary for the current archive
+                archive = self.tool.get_current_archive()
+                if archive:
+                    return archive.get_rw_version_summary()
                 return None
             
             @property
@@ -1026,7 +1029,7 @@ class ImgEditorTool(QWidget):
         replace_btn = QPushButton("🔄 Replace")
         replace_btn.clicked.connect(lambda: self.handle_img_tool("Replace Selected"))
         delete_btn = QPushButton("🗑️ Delete")
-        delete_btn.clicked.connect(lambda: self.handle_img_tool("Delete Selected"))
+        delete_btn.clicked.connect(lambda: self.handle_img_tool("Delete_Selected"))
         rebuild_btn = QPushButton("🔄 Rebuild")
         rebuild_btn.clicked.connect(lambda: self.handle_img_tool("Rebuild"))
         import_btn = QPushButton("📥 Import")
@@ -1114,18 +1117,6 @@ class ImgEditorTool(QWidget):
         self.create_import_export_group(import_layout)
         tab_widget.addTab(import_tab, "📤 Import/Export")
         
-        # Entry Management Tab
-        entry_tab = QWidget()
-        entry_layout = QVBoxLayout(entry_tab)
-        self.create_entry_management_group(entry_layout)
-        tab_widget.addTab(entry_tab, "📝 Entries")
-        
-        # Selection Tools Tab
-        selection_tab = QWidget()
-        selection_layout = QVBoxLayout(selection_tab)
-        self.create_selection_tools_group(selection_layout)
-        tab_widget.addTab(selection_tab, "✅ Selection")
-        
         tools_layout.addWidget(tab_widget)
         tools_group.setLayout(tools_layout)
         
@@ -1161,8 +1152,6 @@ class ImgEditorTool(QWidget):
         close_all_btn = QPushButton("❌ Close All")
         close_all_btn.clicked.connect(lambda: self.handle_img_tool("Close All"))
         
-        recent_files_btn = QPushButton("📋 Recent Files")
-        recent_files_btn.clicked.connect(lambda: self.handle_img_tool("Recent Files"))
                 
         
         # Add buttons to grid - using a 3x3 grid for better organization
@@ -1173,7 +1162,6 @@ class ImgEditorTool(QWidget):
         file_grid.addWidget(close_img_btn, 1, 1)
         
         file_grid.addWidget(close_all_btn, 2, 0)
-        file_grid.addWidget(recent_files_btn, 2, 1)
         
         file_ops_group.setLayout(file_grid)
         
@@ -1186,9 +1174,8 @@ class ImgEditorTool(QWidget):
         
         img_grid = QGridLayout()
         # Set horizontal spacing between columns
-        img_grid.setHorizontalSpacing(10)
+        img_grid.setHorizontalSpacing(15)
         # Set vertical spacing between rows
-        img_grid.setVerticalSpacing(5)
         
         rebuild_btn = QPushButton("🔨 Rebuild")
         rebuild_btn.clicked.connect(lambda: self.handle_img_tool("Rebuild IMG"))
@@ -1196,8 +1183,6 @@ class ImgEditorTool(QWidget):
         rebuild_all_btn = QPushButton("🔨 Rebuild All")
         rebuild_all_btn.clicked.connect(lambda: self.handle_img_tool("Rebuild All"))
         
-        rebuild_as_btn = QPushButton("🔨 Rebuild As")
-        rebuild_as_btn.clicked.connect(lambda: self.handle_img_tool("Rebuild As"))
         
         merge_btn = QPushButton("🔗 Merge IMG")
         merge_btn.clicked.connect(lambda: self.handle_img_tool("Merge IMG"))
@@ -1208,43 +1193,20 @@ class ImgEditorTool(QWidget):
         convert_btn = QPushButton("🔄 Convert Format")
         convert_btn.clicked.connect(lambda: self.handle_img_tool("Convert Format"))
         
-        optimize_btn = QPushButton("⚡ Optimize")
-        optimize_btn.clicked.connect(lambda: self.handle_img_tool("Optimize IMG"))
         
-        defrag_btn = QPushButton("🧹 Defragment")
-        defrag_btn.clicked.connect(lambda: self.handle_img_tool("Defragment IMG"))
         
         compress_btn = QPushButton("🗜️ Compress")
         compress_btn.clicked.connect(lambda: self.handle_img_tool("Compress IMG"))
         
-        backup_btn = QPushButton("📋 Backup")
-        backup_btn.clicked.connect(lambda: self.handle_img_tool("Backup IMG"))
         
-        compare_btn = QPushButton("⚖️ Compare")
-        compare_btn.clicked.connect(lambda: self.handle_img_tool("Compare IMG Files"))
         
         # Add buttons to grid
         img_grid.addWidget(rebuild_btn, 0, 0)
-        img_grid.addWidget(rebuild_all_btn, 1, 0)
-        img_grid.addWidget(rebuild_as_btn, 2, 0)
-        img_grid.addWidget(merge_btn, 0, 1)
+        img_grid.addWidget(rebuild_all_btn, 0, 1)
+        img_grid.addWidget(merge_btn, 1, 0)
         img_grid.addWidget(split_btn, 1, 1)
-        img_grid.addWidget(convert_btn, 2, 1)
-        img_grid.addWidget(optimize_btn, 0, 2)
-        img_grid.addWidget(defrag_btn, 1, 2)
-        img_grid.addWidget(compress_btn, 2, 2)
-        img_grid.addWidget(backup_btn, 3, 0)
-        img_grid.addWidget(compare_btn, 3, 1)
-        
-        img_ops_group.setLayout(img_grid)
-        
-        # Add to parent layout
-        parent_layout.addWidget(img_ops_group)
-        img_grid.addWidget(optimize_btn, 0, 2)
-        img_grid.addWidget(defrag_btn, 1, 2)
-        img_grid.addWidget(compress_btn, 2, 2)
-        img_grid.addWidget(backup_btn, 3, 0)
-        img_grid.addWidget(compare_btn, 3, 1)
+        img_grid.addWidget(convert_btn, 2, 0)
+        img_grid.addWidget(compress_btn, 2, 1)
         
         img_ops_group.setLayout(img_grid)
         
@@ -1292,92 +1254,6 @@ class ImgEditorTool(QWidget):
         # Add to parent layout
         parent_layout.addWidget(import_export_group)
     
-    def create_entry_management_group(self, parent_layout):
-        """Create Entry Management tool group"""
-        entry_group = QGroupBox("📝 Entry Management")
-        
-        entry_grid = QGridLayout()
-        # Set horizontal spacing between columns
-        entry_grid.setHorizontalSpacing(10)
-        # Set vertical spacing between rows
-        entry_grid.setVerticalSpacing(5)
-        
-        extract_btn = QPushButton("📦 Extract Entry")
-        extract_btn.clicked.connect(lambda: self.handle_img_tool("Extract Entry"))
-        extract_all_btn = QPushButton("📦 Extract All")
-        extract_all_btn.clicked.connect(lambda: self.handle_img_tool("Extract All"))
-        batch_extract_btn = QPushButton("📦 Batch Extract")
-        batch_extract_btn.clicked.connect(lambda: self.handle_img_tool("Batch Extract"))
-        
-        replace_btn = QPushButton("🔄 Replace Entry")
-        replace_btn.clicked.connect(lambda: self.handle_img_tool("Replace Entry"))
-        
-        rename_btn = QPushButton("✏️ Rename Entry")
-        rename_btn.clicked.connect(lambda: self.handle_img_tool("Rename Entry"))
-        
-        delete_btn = QPushButton("🗑️ Delete Entry")
-        delete_btn.clicked.connect(lambda: self.handle_img_tool("Delete Entry"))
-        copy_btn = QPushButton("📋 Copy Entry")
-        copy_btn.clicked.connect(lambda: self.handle_img_tool("Copy Entry"))
-        
-        move_btn = QPushButton("↪️ Move Entry")
-        move_btn.clicked.connect(lambda: self.handle_img_tool("Move Entry"))
-        view_btn = QPushButton("👁️ View Entry")
-        view_btn.clicked.connect(lambda: self.handle_img_tool("View Entry"))
-        
-        # Add buttons to grid
-        entry_grid.addWidget(extract_btn, 0, 0)
-        entry_grid.addWidget(extract_all_btn, 1, 0)
-        entry_grid.addWidget(batch_extract_btn, 2, 0)
-        entry_grid.addWidget(replace_btn, 0, 1)
-        entry_grid.addWidget(rename_btn, 1, 1)
-        entry_grid.addWidget(delete_btn, 2, 1)
-        entry_grid.addWidget(copy_btn, 0, 2)
-        entry_grid.addWidget(move_btn, 1, 2)
-        entry_grid.addWidget(view_btn, 2, 2)
-        
-        entry_group.setLayout(entry_grid)
-        
-        # Add to parent layout
-        parent_layout.addWidget(entry_group)
-    
-    def create_selection_tools_group(self, parent_layout):
-        """Create Selection Tools group"""
-        selection_group = QGroupBox("✅ Selection Tools")
-        
-        selection_grid = QGridLayout()
-        # Set horizontal spacing between columns
-        selection_grid.setHorizontalSpacing(10)
-        # Set vertical spacing between rows
-        selection_grid.setVerticalSpacing(5)
-        
-        select_all_btn = QPushButton("✅ Select All")
-        select_all_btn.clicked.connect(lambda: self.handle_img_tool("Select All"))
-        
-        select_inverse_btn = QPushButton("🔄 Select Inverse")
-        select_inverse_btn.clicked.connect(lambda: self.handle_img_tool("Select Inverse"))
-        
-        select_none_btn = QPushButton("❌ Select None")
-        select_none_btn.clicked.connect(lambda: self.handle_img_tool("Select None"))
-        
-        sort_btn = QPushButton("📊 Sort Entries")
-        sort_btn.clicked.connect(lambda: self.handle_img_tool("Sort Entries"))
-        
-        pin_btn = QPushButton("📌 Pin Selected")
-        pin_btn.clicked.connect(lambda: self.handle_img_tool("Pin Selected"))
-        
-        # Add buttons to grid
-        selection_grid.addWidget(select_all_btn, 0, 0)
-        selection_grid.addWidget(select_inverse_btn, 1, 0)
-        selection_grid.addWidget(select_none_btn, 2, 0)
-        selection_grid.addWidget(sort_btn, 0, 1)
-        selection_grid.addWidget(pin_btn, 1, 1)
-        
-        selection_group.setLayout(selection_grid)
-        
-        # Add to parent layout
-        parent_layout.addWidget(selection_group)
-    
     def handle_img_tool(self, tool_name):
         """Handle IMG tool action"""
         # Handle different tool actions using imported handlers
@@ -1395,7 +1271,7 @@ class ImgEditorTool(QWidget):
             self._add_files()
         elif tool_name == "Extract Selected":
             self._extract_selected()
-        elif tool_name == "Delete Selected":
+        elif tool_name == "delete_Selected":
             self._delete_selected()
         else:
             # For other tools not yet implemented
