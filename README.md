@@ -1,4 +1,3 @@
-
 # Renderware Modding Suite
 
 **A modern, modular, and extensible modding suite for the Grand Theft Auto 3D era games (GTA III, Vice City, San Andreas).**
@@ -282,21 +281,21 @@ This script will:
 - Create an optimized executable with all required files
 - Generate a standalone distribution in the `build/` directory
 
-### Manual PyInstaller Build
+### Manual Nuitka Build
 
-Alternatively, you can use PyInstaller for building:
+Alternatively, you can use Nuitka manually for building:
 
-1.  **Install PyInstaller:**
+1.  **Install Nuitka:**
     ```sh
-    pip install pyinstaller
+    pip install nuitka
     ```
 
 2.  **Build the executable:**
     ```sh
-    pyinstaller RenderwareModdingSuite.spec
+    nuitka --standalone --onefile --enable-plugin=pyside6,qt-plugins application/main.py
     ```
 
-    The final executable will be located in the `dist/RenderwareModdingSuite` directory.
+    The final executable will be located in the `dist/` directory.
 
 ## Development
 
