@@ -255,22 +255,63 @@ class IMGController(QObject):
             return False, f"Error extracting files: {str(e)}"
     
     def delete_selected(self):
-        """Deletes selected entries from the current IMG archive."""
-        if not self.current_img:
+        """Deletes selected entries from the current IMG archive in memory only."""
+        active_archive = self.get_active_archive()
+        if not active_archive:
             return False, "No IMG file is currently open"
         
         if not self.selected_entries:
             return False, "No entries selected"
         
         try:
-            for entry in self.selected_entries.copy():
-                self.current_img.delete_entry(entry)
-                self.selected_entries.remove(entry)
+            # Store count before deletion
+            selected_count = len(self.selected_entries)
+            entries_to_delete = self.selected_entries.copy()
             
-            self.entries_updated.emit(self.current_img.entries)
-            return True, f"Deleted {len(self.selected_entries)} entries"
+            # Use the batch delete method for better performance
+            success_count, failed_entries = active_archive.delete_entries(entries_to_delete)
+            
+            # Clear the selection since entries are deleted
+            self.selected_entries.clear()
+            
+            # Emit signal to update UI
+            self.entries_updated.emit(active_archive.entries)
+            
+            if success_count == selected_count:
+                return True, f"Successfully deleted {success_count} entries"
+            elif success_count > 0:
+                return True, f"Deleted {success_count} of {selected_count} entries. {len(failed_entries)} entries could not be deleted."
+            else:
+                return False, "No entries could be deleted"
+                
         except Exception as e:
             return False, f"Error deleting entries: {str(e)}"
+    
+    
+    def has_unsaved_changes(self):
+        """Check if the current archive has unsaved changes."""
+        if not self.current_img:
+            return False
+        return self.current_img.modified
+    
+    def get_modification_info(self):
+        """Get information about modifications to the current archive."""
+        if not self.current_img:
+            return {"modified": False, "has_deletions": False}
+        return self.current_img.get_deleted_entries_count()
+    
+    def validate_entries_exist(self, entry_names):
+        """Validate that entries with given names exist in the current archive."""
+        if not self.current_img:
+            return False, "No IMG file is currently open"
+        
+        existing_names = self.current_img.get_entry_names()
+        missing_names = [name for name in entry_names if name not in existing_names]
+        
+        if missing_names:
+            return False, f"Entries not found: {', '.join(missing_names)}"
+        
+        return True, "All entries exist"
     
     # IMG Operations
     

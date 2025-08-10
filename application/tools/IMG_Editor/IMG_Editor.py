@@ -482,52 +482,6 @@ class IMGArchiveTab(QWidget):
         """Handle entry selection"""
         self.entries_selected.emit(entries)
     
-    # Tab-specific action methods
-    def _add_files(self):
-        """Add files to this archive"""
-        if self.parent_tool:
-            # Switch to this tab's archive and delegate to parent tool
-            if self.img_archive.file_path:
-                self.parent_tool.switch_to_archive(self.img_archive.file_path)
-            self.parent_tool.handle_img_tool("Add Files")
-        else:
-            self.action_requested.emit("Add Files", self.img_archive)
-    
-    def _extract_selected(self):
-        """Extract selected entries from this archive"""
-        selected_entries = self.get_selected_entries()
-        if not selected_entries:
-            message_box.warning("Please select entries to extract.", "No Selection", self)
-            return
-        
-        if self.parent_tool:
-            # Switch to this tab's archive and delegate to parent tool
-            if self.img_archive.file_path:
-                self.parent_tool.switch_to_archive(self.img_archive.file_path)
-            self.parent_tool.handle_img_tool("Extract Selected")
-        else:
-            self.action_requested.emit("Extract Selected", {
-                'archive': self.img_archive,
-                'entries': selected_entries
-            })
-    
-    def _delete_selected(self):
-        """Delete selected entries from this archive"""
-        selected_entries = self.get_selected_entries()
-        if not selected_entries:
-            message_box.warning("Please select entries to delete.", "No Selection", self)
-            return
-        
-        if self.parent_tool:
-            # Switch to this tab's archive and delegate to parent tool
-            if self.img_archive.file_path:
-                self.parent_tool.switch_to_archive(self.img_archive.file_path)
-            self.parent_tool.handle_img_tool("Delete Selected")
-        else:
-            self.action_requested.emit("Delete Selected", {
-                'archive': self.img_archive,
-                'entries': selected_entries
-            })
     
 
 
@@ -553,6 +507,7 @@ class ImgEditorTool(QWidget):
         self.img_controller.img_loaded.connect(self._on_img_loaded)
         self.img_controller.img_closed.connect(self._on_img_closed)
         self.img_controller.archive_switched.connect(self._on_archive_switched)
+        self.img_controller.entries_updated.connect(self._on_entries_updated_for_tabs)
         
         self.setup_ui()
     
@@ -574,16 +529,11 @@ class ImgEditorTool(QWidget):
             def close_img(self):
                 return self.tool.img_controller.close_all_archives()
             
-            def add_files(self, file_paths):
-                # This would need to be implemented in the controller
-                return self.tool.img_controller.add_files_to_current_archive(file_paths)
-            
             def extract_selected(self, output_dir):
-                # This would need to be implemented in the controller
-                return self.tool.img_controller.extract_selected_entries(output_dir)
+                # Delegate to controller implementation
+                return self.tool.img_controller.extract_selected(output_dir)
 
             def delete_selected(self):
-                # This would need to be implemented in the controller
                 return self.tool.img_controller.delete_selected()
             
             def get_img_info(self):
@@ -609,16 +559,21 @@ class ImgEditorTool(QWidget):
     def _import_ui_handlers(self):
         """Import and bind UI interaction handlers"""
         try:
-            from .ui_interaction_handlers import (_open_img_file, _create_new_img,
-                                           _close_img, _add_files, 
-                                          _extract_selected, _delete_selected,
-                                          _on_img_loaded, _on_img_closed, _on_entries_updated)
+            from .ui_interaction_handlers import (
+                _open_img_file,
+                _create_new_img,
+                _close_img,
+                _extract_selected,
+                _delete_selected,
+                _on_img_loaded,
+                _on_img_closed,
+                _on_entries_updated,
+            )
             
             # Bind imported functions as methods of this class
             self._open_img_file = _open_img_file.__get__(self, self.__class__)
             self._create_new_img = _create_new_img.__get__(self, self.__class__)
             self._close_img = _close_img.__get__(self, self.__class__)
-            self._add_files = _add_files.__get__(self, self.__class__)
             self._extract_selected = _extract_selected.__get__(self, self.__class__)
             self._delete_selected = _delete_selected.__get__(self, self.__class__)
             self._on_img_loaded_handler = _on_img_loaded.__get__(self, self.__class__)
@@ -632,9 +587,6 @@ class ImgEditorTool(QWidget):
             self._delete_selected = self._fallback_delete_selected
             self._create_new_img = self._fallback_create_new_img
     
-    def _fallback_add_files(self):
-        """Fallback method for adding files"""
-        message_box.info("Add files feature is not implemented yet.", "Feature Not Implemented", self)
     
     def _fallback_extract_selected(self):
         """Fallback method for extracting selected entries"""
@@ -956,10 +908,20 @@ class ImgEditorTool(QWidget):
         self.update_info_panel()
         self.archive_switched.emit(img_archive)
     
+    def _on_entries_updated_for_tabs(self, entries):
+        """Refresh the current tab's table and info when controller entries change"""
+        if self.current_archive_tab:
+            self.current_archive_tab.entries_table.populate_entries(entries or [])
+            self.update_info_panel()
+            self.update_status()
+
     def _on_entries_selected(self, entries):
-        """Handle entry selection in current tab"""
-        # Update right panel based on selection
-        pass
+        """Handle entry selection in current tab by updating controller selection"""
+        # Keep controller in sync with UI-selected entries
+        self.img_controller.set_selected_entries(entries or [])
+        # Optional: update status/info
+        self.update_status()
+
     
     def _on_archive_modified(self, file_path):
         """Handle archive modification"""
@@ -1029,7 +991,7 @@ class ImgEditorTool(QWidget):
         replace_btn = QPushButton("🔄 Replace")
         replace_btn.clicked.connect(lambda: self.handle_img_tool("Replace Selected"))
         delete_btn = QPushButton("🗑️ Delete")
-        delete_btn.clicked.connect(lambda: self.handle_img_tool("Delete_Selected"))
+        delete_btn.clicked.connect(lambda: self.handle_img_tool("Delete Selected"))
         rebuild_btn = QPushButton("🔄 Rebuild")
         rebuild_btn.clicked.connect(lambda: self.handle_img_tool("Rebuild"))
         import_btn = QPushButton("📥 Import")
@@ -1267,11 +1229,9 @@ class ImgEditorTool(QWidget):
             self._close_all_imgs()
         elif tool_name == "Create New IMG":
             self._create_new_img()
-        elif tool_name == "Add Files":
-            self._add_files()
         elif tool_name == "Extract Selected":
             self._extract_selected()
-        elif tool_name == "delete_Selected":
+        elif tool_name == "Delete Selected":
             self._delete_selected()
         else:
             # For other tools not yet implemented

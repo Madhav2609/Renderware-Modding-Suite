@@ -92,7 +92,7 @@ def _extract_selected(self):
         message_box.info(message, "Files Extracted", self)
 
 def _delete_selected(self):
-    """Delete selected entries"""
+    """Delete selected entries from the current archive (in memory only)"""
     if not self.img_editor.is_img_open():
         from application.common.message_box import message_box
         message_box.info("No IMG file is currently open.", "No IMG Open", self)
@@ -102,11 +102,24 @@ def _delete_selected(self):
         from application.common.message_box import message_box
         message_box.info("No entries selected to delete.", "No Selection", self)
         return
-        
+    
+    # Get entry count and names for confirmation
+    selected_count = len(self.img_editor.selected_entries)
+    entry_names = [entry.name for entry in self.img_editor.selected_entries[:5]]  # Show first 5 names
+    
+    # Create confirmation message
+    if selected_count <= 5:
+        files_text = ", ".join(entry_names)
+    else:
+        files_text = ", ".join(entry_names) + f" and {selected_count - 5} more"
+    
     # Confirm deletion
     reply = QMessageBox.question(
         self, "Confirm Delete",
-        f"Are you sure you want to delete {len(self.img_editor.selected_entries)} selected entries?",
+        f"Are you sure you want to delete {selected_count} selected entries?\n\n"
+        f"Files: {files_text}\n\n"
+        "Note: This will only remove entries from memory. "
+        "The actual IMG file will not be modified until you save or rebuild the archive.",
         QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No
     )
     
@@ -116,7 +129,8 @@ def _delete_selected(self):
         if not success:
             message_box.error(message, "Error Deleting Entries", self)
         else:
-            message_box.info(message, "Entries Deleted", self)
+            message_box.info(f"{message}\n\nRemember to save or rebuild the archive to make changes permanent.", 
+                           "Entries Deleted", self)
 
 # Signal handlers for backend events
 

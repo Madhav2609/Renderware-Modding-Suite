@@ -338,38 +338,69 @@ class IMGArchive:
             
         return result
     
-    def delete_entry(self, entry_or_name):
+    
+    def delete_entries(self, entries):
         """
-        Removes an entry from an IMG archive, including its data from the IMG file.
-
+        Removes multiple entries from an IMG archive in memory only.
+        The actual IMG file is not modified until save/rebuild operation.
+        
         Args:
-            entry_or_name: IMGEntry object or entry name to remove
-
+            entries: List of IMGEntry objects to remove
+            
         Returns:
-            True if successful, False otherwise
+            Tuple of (success_count, failed_entries)
         """
-        entry = entry_or_name
+        if not entries:
+            return 0, []
+        
+        success_count = 0
+        failed_entries = []
+        
+        for entry in entries:
+            if entry in self.entries:
+                self.entries.remove(entry)
+                success_count += 1
+            else:
+                failed_entries.append(entry)
+        
+        if success_count > 0:
+            self.modified = True
+        
+        return success_count, failed_entries
+    
+    def has_entry(self, entry_or_name):
+        """
+        Check if an entry exists in the archive.
+        
+        Args:
+            entry_or_name: IMGEntry object or entry name to check
+            
+        Returns:
+            True if entry exists, False otherwise
+        """
         if isinstance(entry_or_name, str):
-            entry = self.get_entry_by_name(entry_or_name)
-
-        if not entry or entry not in self.entries:
-            return False
-
-        # Remove the entry from the IMG file
-        if self.file_path and os.path.exists(self.file_path):
-            with open(self.file_path, 'r+b') as img_file:
-                # Calculate the byte range to clear
-                start = entry.actual_offset
-                end = start + entry.actual_size
-
-                # Move to the start position and overwrite with zeros
-                img_file.seek(start)
-                img_file.write(b'\x00' * (end - start))
-
-        # Remove the entry from the entries list
-        self.entries.remove(entry)
-        self.modified = True
-        return True
+            return self.get_entry_by_name(entry_or_name) is not None
+        else:
+            return entry_or_name in self.entries
+    
+    def get_deleted_entries_count(self):
+        """
+        Get count of how many entries have been deleted (if tracking is implemented).
+        For now, this is calculated by checking if the archive is modified.
+        
+        Returns:
+            Information about modifications (placeholder for future enhancement)
+        """
+        return {"modified": self.modified, "has_deletions": self.modified}
+    
+    def get_entry_names(self):
+        """
+        Get list of all entry names in the archive.
+        
+        Returns:
+            List of entry names
+        """
+        return [entry.name for entry in self.entries]
     
     def __str__(self):
         """String representation of the IMG archive."""
