@@ -151,6 +151,18 @@ class IMGController(QObject):
         """Get the currently active archive."""
         return self.archive_manager.get_active_archive()
     
+    @property
+    def current_img(self):
+        """Legacy property for backward compatibility."""
+        return self.get_active_archive()
+    
+    @current_img.setter 
+    def current_img(self, value):
+        """Legacy setter for backward compatibility."""
+        # This is mainly for compatibility with old code
+        # New code should use the archive_manager methods
+        pass
+    
     def get_open_archives(self):
         """Get list of all open archive paths."""
         return self.archive_manager.get_archive_paths()
@@ -287,18 +299,308 @@ class IMGController(QObject):
         except Exception as e:
             return False, f"Error deleting entries: {str(e)}"
     
+    # Import Methods
+    def import_via_ide(self, ide_file_path, models_directory=None):
+        """
+        Import DFF models and TXD textures from an IDE file into the current archive.
+        
+        Args:
+            ide_file_path: Path to the IDE file to parse
+            models_directory: Directory containing the DFF and TXD files
+            
+        Returns:
+            Tuple of (success, message, parsed_info)
+        """
+        active_archive = self.get_active_archive()
+        if not active_archive:
+            return False, "No IMG file is currently open", None
+        
+        if not ide_file_path or not os.path.exists(ide_file_path):
+            return False, "Invalid IDE file path", None
+        
+        try:
+            imported_entries, failed_files, parsed_info = Import_Export.import_via_ide(
+                active_archive, ide_file_path, models_directory
+            )
+            
+            # Update UI
+            if imported_entries:
+                self.entries_updated.emit(active_archive.entries)
+                active_archive.modified = True
+                
+                success_count = len(imported_entries)
+                failed_count = len(failed_files)
+                
+                # Create detailed message
+                message_parts = [
+                    f"IDE Import completed:",
+                    f"• Successfully imported: {success_count} files",
+                    f"• Models found: {len(parsed_info['found_models'])}",
+                    f"• Textures found: {len(parsed_info['found_textures'])}",
+                ]
+                
+                if parsed_info['missing_models']:
+                    message_parts.append(f"• Missing models: {len(parsed_info['missing_models'])}")
+                if parsed_info['missing_textures']:
+                    message_parts.append(f"• Missing textures: {len(parsed_info['missing_textures'])}")
+                if failed_count > 0:
+                    message_parts.append(f"• Failed imports: {failed_count}")
+                
+                message = "\n".join(message_parts)
+                
+                self.operation_completed.emit(True, message)
+                return True, message, parsed_info
+            else:
+                message = "No files were imported from the IDE file"
+                if parsed_info:
+                    if parsed_info['missing_models'] or parsed_info['missing_textures']:
+                        message += f"\nMissing files: {len(parsed_info['missing_models'])} models, {len(parsed_info['missing_textures'])} textures"
+                
+                return False, message, parsed_info
+                
+        except Exception as e:
+            error_msg = f"Error importing from IDE file: {str(e)}"
+            self.operation_completed.emit(False, error_msg)
+            return False, error_msg, None
+    
+    def import_multiple_files(self, file_paths, entry_names=None):
+        """
+        Import multiple files into the current archive (memory only operation).
+        
+        Args:
+            file_paths: List of file paths to import
+            entry_names: Optional list of custom names for the entries
+            
+        Returns:
+            Tuple of (success, message)
+        """
+        active_archive = self.get_active_archive()
+        if not active_archive:
+            return False, "No IMG file is currently open"
+        
+        if not file_paths:
+            return False, "No files provided for import"
+        
+        try:
+            # Import files
+            imported_entries, failed_files = Import_Export.import_multiple_files(
+                active_archive, file_paths, entry_names
+            )
+            
+            if imported_entries:
+                # Emit signal to update UI
+                self.entries_updated.emit(active_archive.entries)
+            
+            # Prepare result message
+            success_count = len(imported_entries)
+            failed_count = len(failed_files)
+            total_count = len(file_paths)
+            
+            if success_count == total_count:
+                return True, f"Successfully imported {success_count} file(s)"
+            elif success_count > 0:
+                return True, f"Imported {success_count} of {total_count} files. {failed_count} files failed."
+            else:
+                return False, f"Failed to import any files. {failed_count} files failed."
+                
+        except Exception as e:
+            return False, f"Error importing files: {str(e)}"
+    
+    def import_folder(self, folder_path, recursive=False, filter_extensions=None):
+        """
+        Import all files from a folder into the current archive (memory only operation).
+        
+        Args:
+            folder_path: Path to the folder to import
+            recursive: Whether to include subdirectories
+            filter_extensions: Optional list of file extensions to filter by
+            
+        Returns:
+            Tuple of (success, message)
+        """
+        active_archive = self.get_active_archive()
+        if not active_archive:
+            return False, "No IMG file is currently open"
+        
+        try:
+            # Import folder
+            imported_entries, failed_files = Import_Export.import_folder(
+                active_archive, folder_path, recursive, filter_extensions
+            )
+            
+            if imported_entries:
+                # Emit signal to update UI
+                self.entries_updated.emit(active_archive.entries)
+            
+            # Prepare result message
+            success_count = len(imported_entries)
+            failed_count = len(failed_files)
+            
+            if success_count > 0:
+                message = f"Successfully imported {success_count} file(s) from folder"
+                if failed_count > 0:
+                    message += f". {failed_count} files failed."
+                return True, message
+            else:
+                return False, f"No files were imported. {failed_count} files failed or no matching files found."
+                
+        except Exception as e:
+            return False, f"Error importing folder: {str(e)}"
+    
+    def get_import_preview(self, file_paths):
+        """
+        Get a preview of what would happen if files were imported.
+        
+        Args:
+            file_paths: List of file paths to preview
+            
+        Returns:
+            Tuple of (success, preview_data or error_message)
+        """
+        active_archive = self.get_active_archive()
+        if not active_archive:
+            return False, "No IMG file is currently open"
+        
+        try:
+            preview = Import_Export.get_import_preview(active_archive, file_paths)
+            return True, preview
+        except Exception as e:
+            return False, f"Error generating import preview: {str(e)}"
+    
+    # Deleted Entry Management
+    
+    def get_deleted_entries(self):
+        """
+        Get list of deleted entries.
+        
+        Returns:
+            List of deleted IMGEntry objects
+        """
+        active_archive = self.get_active_archive()
+        if not active_archive:
+            return []
+        return active_archive.deleted_entries
+    
+    def get_deleted_entry_names(self):
+        """
+        Get list of deleted entry names.
+        
+        Returns:
+            List of deleted entry names
+        """
+        active_archive = self.get_active_archive()
+        if not active_archive:
+            return []
+        return active_archive.get_deleted_entry_names()
+    
+    def restore_deleted_entry(self, entry_name):
+        """
+        Restore a deleted entry.
+        
+        Args:
+            entry_name: Name of the entry to restore
+            
+        Returns:
+            Tuple of (success, message)
+        """
+        active_archive = self.get_active_archive()
+        if not active_archive:
+            return False, "No IMG file is currently open"
+        
+        try:
+            success = active_archive.restore_deleted_entry(entry_name)
+            
+            if success:
+                # Emit signal to update UI
+                self.entries_updated.emit(active_archive.entries)
+                return True, f"Successfully restored {entry_name}"
+            else:
+                return False, f"Could not find deleted entry: {entry_name}"
+                
+        except Exception as e:
+            return False, f"Error restoring entry: {str(e)}"
+    
+    def restore_all_deleted_entries(self):
+        """
+        Restore all deleted entries.
+        
+        Returns:
+            Tuple of (success, message)
+        """
+        active_archive = self.get_active_archive()
+        if not active_archive:
+            return False, "No IMG file is currently open"
+        
+        try:
+            count = active_archive.restore_all_deleted_entries()
+            
+            if count > 0:
+                # Emit signal to update UI
+                self.entries_updated.emit(active_archive.entries)
+                return True, f"Successfully restored {count} deleted entries"
+            else:
+                return False, "No deleted entries to restore"
+                
+        except Exception as e:
+            return False, f"Error restoring entries: {str(e)}"
+    
     
     def has_unsaved_changes(self):
         """Check if the current archive has unsaved changes."""
-        if not self.current_img:
+        active_archive = self.get_active_archive()
+        if not active_archive:
             return False
-        return self.current_img.modified
+        return active_archive.modified
     
     def get_modification_info(self):
         """Get information about modifications to the current archive."""
-        if not self.current_img:
-            return {"modified": False, "has_deletions": False}
-        return self.current_img.get_deleted_entries_count()
+        active_archive = self.get_active_archive()
+        if not active_archive:
+            return {"modified": False, "has_deletions": False, "has_new_entries": False}
+        
+        # Use the new modification summary method
+        if hasattr(active_archive, 'get_modification_summary'):
+            return active_archive.get_modification_summary()
+        else:
+            # Fallback for backwards compatibility
+            return active_archive.get_deleted_entries_count()
+    
+    def get_detailed_modification_status(self):
+        """
+        Get detailed information about all modifications to the current archive.
+        
+        Returns:
+            Detailed modification information dictionary
+        """
+        active_archive = self.get_active_archive()
+        if not active_archive:
+            return {
+                "has_archive": False,
+                "is_modified": False,
+                "summary": "No archive open"
+            }
+        
+        mod_summary = active_archive.get_modification_summary()
+        
+        # Add additional details
+        status_messages = []
+        if mod_summary['has_new_entries']:
+            status_messages.append(f"{mod_summary['new_entries_count']} new entries")
+        if mod_summary['has_deleted_entries']:
+            status_messages.append(f"{mod_summary['deleted_entries_count']} deleted entries")
+        
+        if not status_messages:
+            summary = "No changes"
+        else:
+            summary = ", ".join(status_messages)
+        
+        return {
+            "has_archive": True,
+            "is_modified": mod_summary['is_modified'],
+            "needs_save": mod_summary['needs_save'],
+            "summary": summary,
+            "details": mod_summary
+        }
     
     def validate_entries_exist(self, entry_names):
         """Validate that entries with given names exist in the current archive."""

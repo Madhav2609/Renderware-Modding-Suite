@@ -38,6 +38,7 @@ class IMGEntry:
         self._rw_version = None  # Cached RenderWare version
         self._rw_version_name = None  # Cached RW version name
         self._format_info = None # Cached format information
+        self.is_new_entry = False # Flag to track if this is a new/modified entry
     
     @property
     def actual_offset(self):
@@ -159,6 +160,7 @@ class IMGArchive:
         self.version = None       # 'V1' or 'V2'
         self.entries = []         # List of IMGEntry objects
         self.modified = False     # Track if the archive has been modified
+        self.deleted_entries = [] # Track deleted entries for modification summary
     
     def get_entry_by_name(self, name):
         """Finds an entry by its name (case-insensitive)."""
@@ -358,6 +360,15 @@ class IMGArchive:
         
         for entry in entries:
             if entry in self.entries:
+                # Only track as deleted if it's an existing entry (not a new entry)
+                if not (hasattr(entry, 'is_new_entry') and entry.is_new_entry):
+                    # This was an original entry from the file, so track it as deleted
+                    self.deleted_entries.append(entry)
+                    print(f"[DEBUG] Tracking deleted original entry: {entry.name}")
+                else:
+                    # This was a new entry that was never saved, so just remove it
+                    print(f"[DEBUG] Removing new entry (not saved): {entry.name}")
+                
                 self.entries.remove(entry)
                 success_count += 1
             else:
@@ -385,13 +396,17 @@ class IMGArchive:
     
     def get_deleted_entries_count(self):
         """
-        Get count of how many entries have been deleted (if tracking is implemented).
-        For now, this is calculated by checking if the archive is modified.
+        Get count of how many entries have been deleted from the original file.
         
         Returns:
-            Information about modifications (placeholder for future enhancement)
+            Information about deletions and modifications
         """
-        return {"modified": self.modified, "has_deletions": self.modified}
+        return {
+            "modified": self.modified, 
+            "has_deletions": len(self.deleted_entries) > 0,
+            "deleted_count": len(self.deleted_entries),
+            "deleted_entries": [entry.name for entry in self.deleted_entries]
+        }
     
     def get_entry_names(self):
         """
@@ -401,6 +416,244 @@ class IMGArchive:
             List of entry names
         """
         return [entry.name for entry in self.entries]
+    
+    def add_entry(self, filename, data):
+        """
+        Add new entry to IMG file - memory only operation.
+        The actual IMG file will not be modified until save/rebuild.
+        
+        Args:
+            filename: Name for the new entry
+            data: Raw bytes data for the entry
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            import math
+            
+            # Validate inputs
+            if not filename or not data:
+                print(f"[ERROR] Invalid filename or data provided")
+                return False
+            
+            # Ensure filename length is valid
+            if len(filename.encode('ascii', errors='replace')) >= MAX_FILENAME_LENGTH:
+                filename = filename[:MAX_FILENAME_LENGTH-1]  # Leave room for null terminator
+                print(f"[DEBUG] Filename truncated to: {filename}")
+            
+            # Check for duplicate entries (replace if exists)
+            existing_entry = None
+            for i, entry in enumerate(self.entries):
+                if entry.name.lower() == filename.lower():
+                    existing_entry = entry
+                    print(f"[DEBUG] Replacing existing entry at index {i}: {filename}")
+                    break
+            
+            if existing_entry:
+                # Replace existing entry data
+                print(f"[DEBUG] Updating existing entry data...")
+                existing_entry.data = data
+                existing_entry.size = math.ceil(len(data) / SECTOR_SIZE)
+                existing_entry.streaming_size = existing_entry.size if self.version == 'V2' else 0
+                
+                # Detect file type and RW version from data
+                existing_entry.detect_rw_version(data)
+                print(f"[DEBUG] Existing entry updated: size={existing_entry.size} sectors, data_length={len(data)} bytes")
+                
+                # Mark entry as new/modified for future save operations
+                existing_entry.is_new_entry = True
+            else:
+                # Create brand new entry
+                print(f"[DEBUG] Creating new IMGEntry...")
+                new_entry = IMGEntry()
+                new_entry.name = filename
+                new_entry.data = data
+                new_entry.size = math.ceil(len(data) / SECTOR_SIZE)
+                new_entry.streaming_size = new_entry.size if self.version == 'V2' else 0
+                
+                # Calculate proper offset for new entry
+                new_entry.offset = self.calculate_next_offset()
+                print(f"[DEBUG] Calculated offset for new entry: 0x{new_entry.offset:08X}")
+                
+                # Detect file type and RW version from data
+                new_entry.detect_rw_version(data)
+                
+                # Mark as new entry for future save operations
+                new_entry.is_new_entry = True
+                
+                # Add to entries list
+                self.entries.append(new_entry)
+                print(f"[DEBUG] Entry added successfully: {filename}")
+                print(f"[DEBUG] Total entries now: {len(self.entries)}")
+            
+            # Mark archive as modified
+            self.modified = True
+            return True
+            
+        except Exception as e:
+            print(f"[ERROR] Failed to add entry {filename}: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+    
+    def calculate_next_offset(self):
+        """
+        Calculate the next available offset for a new entry.
+        This is used for in-memory planning; actual offsets will be recalculated during save/rebuild.
+        
+        Returns:
+            Next available offset in sectors
+        """
+        try:
+            if not self.entries:
+                # First entry
+                if self.version == 'V1':
+                    return 0  # Version 1 starts at beginning
+                else:
+                    # Version 2: Reserve space for directory (will be recalculated during save)
+                    return 1  # Placeholder offset
+            
+            # Find the entry that ends the latest
+            max_end = 0
+            for entry in self.entries:
+                if hasattr(entry, 'is_new_entry') and entry.is_new_entry:
+                    # For new entries, use a calculated end position
+                    entry_end = entry.offset + entry.size
+                else:
+                    # For existing entries, use their current position
+                    entry_end = entry.offset + entry.size
+                
+                if entry_end > max_end:
+                    max_end = entry_end
+            
+            # Return next sector boundary
+            return max_end  # Already in sectors
+            
+        except Exception as e:
+            print(f"[ERROR] Failed to calculate next offset: {e}")
+            return 0
+    
+    def has_new_or_modified_entries(self):
+        """
+        Check if the archive has any new, modified, or deleted entries that need to be saved.
+        
+        Returns:
+            True if there are unsaved changes, False otherwise
+        """
+        if not self.modified:
+            return False
+        
+        # Check for new entries
+        for entry in self.entries:
+            if hasattr(entry, 'is_new_entry') and entry.is_new_entry:
+                return True
+        
+        # Check for deleted entries
+        if len(self.deleted_entries) > 0:
+            return True
+        
+        return False
+    
+    def get_new_entries_count(self):
+        """
+        Get the count of new entries that haven't been saved to file yet.
+        
+        Returns:
+            Number of new entries
+        """
+        count = 0
+        for entry in self.entries:
+            if hasattr(entry, 'is_new_entry') and entry.is_new_entry:
+                count += 1
+        return count
+    
+    def get_deleted_entries_count_only(self):
+        """
+        Get just the count of deleted entries.
+        
+        Returns:
+            Number of deleted entries
+        """
+        return len(self.deleted_entries)
+    
+    def get_deleted_entry_names(self):
+        """
+        Get list of names of deleted entries.
+        
+        Returns:
+            List of deleted entry names
+        """
+        return [entry.name for entry in self.deleted_entries]
+    
+    def clear_modification_tracking(self):
+        """
+        Clear modification tracking. 
+        This should be called after a successful save/rebuild operation.
+        """
+        self.modified = False
+        self.deleted_entries.clear()
+        
+        # Clear new entry flags
+        for entry in self.entries:
+            if hasattr(entry, 'is_new_entry'):
+                entry.is_new_entry = False
+    
+    def restore_deleted_entry(self, entry_name):
+        """
+        Restore a deleted entry back to the archive.
+        
+        Args:
+            entry_name: Name of the entry to restore
+            
+        Returns:
+            True if restored successfully, False if not found
+        """
+        for i, deleted_entry in enumerate(self.deleted_entries):
+            if deleted_entry.name.lower() == entry_name.lower():
+                # Move entry back to the main entries list
+                restored_entry = self.deleted_entries.pop(i)
+                self.entries.append(restored_entry)
+                print(f"[DEBUG] Restored deleted entry: {entry_name}")
+                return True
+        
+        print(f"[DEBUG] Could not find deleted entry to restore: {entry_name}")
+        return False
+    
+    def restore_all_deleted_entries(self):
+        """
+        Restore all deleted entries back to the archive.
+        
+        Returns:
+            Number of entries restored
+        """
+        count = len(self.deleted_entries)
+        self.entries.extend(self.deleted_entries)
+        self.deleted_entries.clear()
+        print(f"[DEBUG] Restored {count} deleted entries")
+        return count
+    
+    def get_modification_summary(self):
+        """
+        Get a summary of modifications made to the archive.
+        
+        Returns:
+            Dictionary with modification information
+        """
+        new_entries = self.get_new_entries_count()
+        deleted_entries = len(self.deleted_entries)
+        
+        return {
+            'is_modified': self.modified,
+            'has_new_entries': new_entries > 0,
+            'has_deleted_entries': deleted_entries > 0,
+            'new_entries_count': new_entries,
+            'deleted_entries_count': deleted_entries,
+            'total_entries': len(self.entries),
+            'original_entries_count': len(self.entries) + deleted_entries,  # Current + deleted
+            'needs_save': self.has_new_or_modified_entries(),
+            'deleted_entry_names': [entry.name for entry in self.deleted_entries]
+        }
     
     def __str__(self):
         """String representation of the IMG archive."""

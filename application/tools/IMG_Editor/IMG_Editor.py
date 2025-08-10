@@ -44,6 +44,11 @@ class IMGFileInfoPanel(QGroupBox):
         self.rw_files_label = QLabel("RenderWare Files: 0")
         self.rw_versions_label = QLabel("RW Versions: None")
         
+        # Modification status labels
+        self.new_entries_label = QLabel("New Entries: 0")
+        self.deleted_entries_label = QLabel("Deleted Entries: 0")
+        self.needs_save_label = QLabel("Needs Save: No")
+        
         # Add labels to layout
         layout.addWidget(self.file_path_label)
         layout.addWidget(self.version_label)
@@ -52,6 +57,9 @@ class IMGFileInfoPanel(QGroupBox):
         layout.addWidget(self.modified_label)
         layout.addWidget(self.rw_files_label)
         layout.addWidget(self.rw_versions_label)
+        layout.addWidget(self.new_entries_label)
+        layout.addWidget(self.deleted_entries_label)
+        layout.addWidget(self.needs_save_label)
         
         # Apply responsive styling
         self.setStyleSheet(f"""
@@ -62,7 +70,7 @@ class IMGFileInfoPanel(QGroupBox):
             }}
         """)
     
-    def update_info(self, img_info=None, rw_summary=None):
+    def update_info(self, img_info=None, rw_summary=None, mod_summary=None):
         """Update panel with IMG file information"""
         if not img_info:
             # Reset to default state
@@ -73,6 +81,9 @@ class IMGFileInfoPanel(QGroupBox):
             self.modified_label.setText("Modified: No")
             self.rw_files_label.setText("RenderWare Files: 0")
             self.rw_versions_label.setText("RW Versions: None")
+            self.new_entries_label.setText("New Entries: 0")
+            self.deleted_entries_label.setText("Deleted Entries: 0")
+            self.needs_save_label.setText("Needs Save: No")
             return
             
         # Update with provided information
@@ -102,6 +113,34 @@ class IMGFileInfoPanel(QGroupBox):
         else:
             self.rw_files_label.setText("RenderWare Files: Analyzing...")
             self.rw_versions_label.setText("RW Versions: Analyzing...")
+        
+        # Update modification status
+        if mod_summary:
+            self.new_entries_label.setText(f"New Entries: {mod_summary.get('new_entries_count', 0)}")
+            self.deleted_entries_label.setText(f"Deleted Entries: {mod_summary.get('deleted_entries_count', 0)}")
+            needs_save = "Yes" if mod_summary.get('needs_save', False) else "No"
+            self.needs_save_label.setText(f"Needs Save: {needs_save}")
+            
+            # Color code the needs save label
+            if mod_summary.get('needs_save', False):
+                self.needs_save_label.setStyleSheet("color: orange; font-weight: bold;")
+            else:
+                self.needs_save_label.setStyleSheet("color: white;")
+            
+            # Set tooltips for deleted entries
+            if mod_summary.get('deleted_entry_names'):
+                deleted_names = mod_summary['deleted_entry_names'][:10]  # Show first 10
+                tooltip_text = "Deleted entries:\n" + "\n".join(deleted_names)
+                if len(mod_summary['deleted_entry_names']) > 10:
+                    tooltip_text += f"\n... and {len(mod_summary['deleted_entry_names']) - 10} more"
+                self.deleted_entries_label.setToolTip(tooltip_text)
+            else:
+                self.deleted_entries_label.setToolTip("")
+        else:
+            self.new_entries_label.setText("New Entries: 0")
+            self.deleted_entries_label.setText("Deleted Entries: 0")
+            self.needs_save_label.setText("Needs Save: No")
+            self.needs_save_label.setStyleSheet("color: white;")
 
 
 
@@ -536,6 +575,29 @@ class ImgEditorTool(QWidget):
             def delete_selected(self):
                 return self.tool.img_controller.delete_selected()
             
+            # Import methods
+            def import_file(self, file_path, entry_name=None):
+                return self.tool.img_controller.import_file(file_path, entry_name)
+            
+            def import_multiple_files(self, file_paths, entry_names=None):
+                return self.tool.img_controller.import_multiple_files(file_paths, entry_names)
+            
+            def import_folder(self, folder_path, recursive=False, filter_extensions=None):
+                return self.tool.img_controller.import_folder(folder_path, recursive, filter_extensions)
+            
+            def get_import_preview(self, file_paths):
+                return self.tool.img_controller.get_import_preview(file_paths)
+            
+            # Modification tracking methods
+            def get_detailed_modification_status(self):
+                return self.tool.img_controller.get_detailed_modification_status()
+            
+            def restore_deleted_entry(self, entry_name):
+                return self.tool.img_controller.restore_deleted_entry(entry_name)
+            
+            def restore_all_deleted_entries(self):
+                return self.tool.img_controller.restore_all_deleted_entries()
+            
             def get_img_info(self):
                 archive = self.tool.get_current_archive()
                 if archive and self.tool.current_archive_tab:
@@ -565,6 +627,13 @@ class ImgEditorTool(QWidget):
                 _close_img,
                 _extract_selected,
                 _delete_selected,
+                _import_Via_IDE,
+                _import_multiple_files,
+                _import_folder,
+                _get_import_preview,
+                _show_modification_status,
+                _proceed_with_import,
+                _proceed_with_ide_import,
                 _on_img_loaded,
                 _on_img_closed,
                 _on_entries_updated,
@@ -576,16 +645,31 @@ class ImgEditorTool(QWidget):
             self._close_img = _close_img.__get__(self, self.__class__)
             self._extract_selected = _extract_selected.__get__(self, self.__class__)
             self._delete_selected = _delete_selected.__get__(self, self.__class__)
+            self._import_Via_IDE = _import_Via_IDE.__get__(self, self.__class__)
+            self._import_multiple_files = _import_multiple_files.__get__(self, self.__class__)
+            self._import_folder = _import_folder.__get__(self, self.__class__)
+            self._get_import_preview = _get_import_preview.__get__(self, self.__class__)
+            self._show_modification_status = _show_modification_status.__get__(self, self.__class__)
+            self._proceed_with_import = _proceed_with_import.__get__(self, self.__class__)
+            self._proceed_with_ide_import = _proceed_with_ide_import.__get__(self, self.__class__)
             self._on_img_loaded_handler = _on_img_loaded.__get__(self, self.__class__)
             self._on_img_closed_handler = _on_img_closed.__get__(self, self.__class__)
             self._on_entries_updated_handler = _on_entries_updated.__get__(self, self.__class__)
             
         except ImportError:
             # If ui_interaction_handlers doesn't exist, use fallback methods
-            self._add_files = self._fallback_add_files
+            self._open_img_file = self._fallback_open_img_file
+            self._create_new_img = self._fallback_create_new_img
+            self._close_img = self._fallback_close_img
             self._extract_selected = self._fallback_extract_selected
             self._delete_selected = self._fallback_delete_selected
-            self._create_new_img = self._fallback_create_new_img
+            self._import_Via_IDE = self._fallback_import_Via_IDE
+            self._import_multiple_files = self._fallback_import_multiple_files
+            self._import_folder = self._fallback_import_folder
+            self._get_import_preview = self._fallback_get_import_preview
+            self._show_modification_status = self._fallback_show_modification_status
+            self._proceed_with_import = self._fallback_proceed_with_import
+            self._proceed_with_ide_import = self._fallback_proceed_with_ide_import
     
     
     def _fallback_extract_selected(self):
@@ -607,6 +691,42 @@ class ImgEditorTool(QWidget):
     def _fallback_create_new_img(self):
         """Fallback method for creating new IMG"""
         message_box.info("Create new IMG feature is not implemented yet.", "Feature Not Implemented", self)
+    
+    def _fallback_open_img_file(self):
+        """Fallback method for opening IMG file"""
+        message_box.info("Open IMG file feature is not implemented yet.", "Feature Not Implemented", self)
+    
+    def _fallback_close_img(self):
+        """Fallback method for closing IMG file"""
+        message_box.info("Close IMG file feature is not implemented yet.", "Feature Not Implemented", self)
+    
+    def _fallback_import_multiple_files(self):
+        """Fallback method for importing multiple files"""
+        message_box.info("Import multiple files feature is not implemented yet.", "Feature Not Implemented", self)
+    
+    def _fallback_import_folder(self):
+        """Fallback method for importing folder"""
+        message_box.info("Import folder feature is not implemented yet.", "Feature Not Implemented", self)
+    
+    def _fallback_get_import_preview(self):
+        """Fallback method for import preview"""
+        message_box.info("Import preview feature is not implemented yet.", "Feature Not Implemented", self)
+    
+    def _fallback_show_modification_status(self):
+        """Fallback method for showing modification status"""
+        message_box.info("Modification status feature is not implemented yet.", "Feature Not Implemented", self)
+    
+    def _fallback_proceed_with_import(self, dialog, file_paths):
+        """Fallback method for proceeding with import"""
+        message_box.info("Import feature is not implemented yet.", "Feature Not Implemented", self)
+    
+    def _fallback_import_Via_IDE(self):
+        """Fallback method for IDE import"""
+        message_box.info("IDE import feature is not implemented yet.", "Feature Not Implemented", self)
+    
+    def _fallback_proceed_with_ide_import(self, dialog, ide_file, models_dir):
+        """Fallback method for proceeding with IDE import"""
+        message_box.info("IDE import feature is not implemented yet.", "Feature Not Implemented", self)
     
     def setup_ui(self):
         """Setup the IMG Editor interface with tabbed archives"""
@@ -965,7 +1085,16 @@ class ImgEditorTool(QWidget):
         """Update the information panel with current archive data"""
         if self.current_archive_tab:
             archive_info = self.current_archive_tab.get_archive_info()
-            self.file_info_panel.update_info(archive_info)
+            
+            # Get RW summary from current archive
+            rw_summary = None
+            if self.current_archive_tab.img_archive:
+                rw_summary = self.current_archive_tab.img_archive.get_rw_version_summary()
+            
+            # Get modification summary from controller
+            mod_summary = self.img_controller.get_modification_info()
+            
+            self.file_info_panel.update_info(archive_info, rw_summary, mod_summary)
         else:
             self.file_info_panel.update_info()
     
@@ -995,7 +1124,7 @@ class ImgEditorTool(QWidget):
         rebuild_btn = QPushButton("🔄 Rebuild")
         rebuild_btn.clicked.connect(lambda: self.handle_img_tool("Rebuild"))
         import_btn = QPushButton("📥 Import")
-        import_btn.clicked.connect(lambda: self.handle_img_tool("Import"))
+        import_btn.clicked.connect(lambda: self.handle_img_tool("Import Files"))
         select_all_btn = QPushButton("✔️ Select All")
         select_all_btn.clicked.connect(lambda: self.handle_img_tool("Select All"))
 
@@ -1185,15 +1314,20 @@ class ImgEditorTool(QWidget):
         # Set vertical spacing between rows
         import_grid.setVerticalSpacing(5)
         
+        # Import buttons
+        import_file_btn = QPushButton("📥 Import Via IDE")
+        import_file_btn.clicked.connect(lambda: self.handle_img_tool("Import Via IDE"))
+        
         import_files_btn = QPushButton("📥 Import Files")
         import_files_btn.clicked.connect(lambda: self.handle_img_tool("Import Files"))
         
-        import_ide_btn = QPushButton("📥 Import via IDE")
-        import_ide_btn.clicked.connect(lambda: self.handle_img_tool("Import via IDE"))
-        
-        import_folder_btn = QPushButton("� Import Folder")
+        import_folder_btn = QPushButton("📁 Import Folder")
         import_folder_btn.clicked.connect(lambda: self.handle_img_tool("Import Folder"))
         
+        import_preview_btn = QPushButton("👁️ Import Preview")
+        import_preview_btn.clicked.connect(lambda: self.handle_img_tool("Import Preview"))
+        
+        # Export buttons
         export_all_btn = QPushButton("📤 Export All")
         export_all_btn.clicked.connect(lambda: self.handle_img_tool("Export All"))
         
@@ -1203,13 +1337,20 @@ class ImgEditorTool(QWidget):
         export_by_type_btn = QPushButton("📤 Export by Type")
         export_by_type_btn.clicked.connect(lambda: self.handle_img_tool("Export by Type"))
         
-        # Add buttons to grid
-        import_grid.addWidget(import_files_btn, 0, 0)
-        import_grid.addWidget(import_ide_btn, 1, 0)
+        # Modification status button
+        mod_status_btn = QPushButton("📊 Mod Status")
+        mod_status_btn.clicked.connect(lambda: self.handle_img_tool("Show Modification Status"))
+        
+        # Add buttons to grid (3 columns now)
+        import_grid.addWidget(import_file_btn, 0, 0)
+        import_grid.addWidget(import_files_btn, 1, 0)
         import_grid.addWidget(import_folder_btn, 2, 0)
+        import_grid.addWidget(import_preview_btn, 3, 0)
+        
         import_grid.addWidget(export_all_btn, 0, 1)
         import_grid.addWidget(export_selected_btn, 1, 1)
         import_grid.addWidget(export_by_type_btn, 2, 1)
+        import_grid.addWidget(mod_status_btn, 3, 1)
         
         import_export_group.setLayout(import_grid)
         
@@ -1233,6 +1374,17 @@ class ImgEditorTool(QWidget):
             self._extract_selected()
         elif tool_name == "Delete Selected":
             self._delete_selected()
+        # Import actions
+        elif tool_name == "Import Via IDE":
+            self._import_Via_IDE()
+        elif tool_name == "Import Files":
+            self._import_multiple_files()
+        elif tool_name == "Import Folder":
+            self._import_folder()
+        elif tool_name == "Import Preview":
+            self._get_import_preview()
+        elif tool_name == "Show Modification Status":
+            self._show_modification_status()
         else:
             # For other tools not yet implemented
             message_box.info(f"The '{tool_name}' feature is not implemented yet.", "Feature Not Implemented", self)
