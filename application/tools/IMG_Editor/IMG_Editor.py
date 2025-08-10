@@ -428,21 +428,6 @@ class IMGArchiveTab(QWidget):
         self.entries_table.entry_selected.connect(self._on_entry_selected)
         layout.addWidget(self.entries_table)
         
-        # Action buttons
-        btn_layout = QHBoxLayout()
-        
-        add_btn = QPushButton("➕ Add")
-        add_btn.clicked.connect(self._add_files)
-        extract_btn = QPushButton("📤 Extract")
-        extract_btn.clicked.connect(self._extract_selected)
-        delete_btn = QPushButton("🗑️ Delete")
-        delete_btn.clicked.connect(self._delete_selected)
-        
-        btn_layout.addWidget(add_btn)
-        btn_layout.addWidget(extract_btn)
-        btn_layout.addWidget(delete_btn)
-        
-        layout.addLayout(btn_layout)
     
     def update_display(self):
         """Update the display with current archive data"""
@@ -1034,19 +1019,29 @@ class ImgEditorTool(QWidget):
         
         # Quick actions
         actions_group = QGroupBox("⚡ Quick Actions")
-        actions_layout = QVBoxLayout()
-        
-        extract_btn = QPushButton("📤 Extract Selected")
+        actions_layout = QGridLayout()
+
+        extract_btn = QPushButton("📤 Extract")
         extract_btn.clicked.connect(lambda: self.handle_img_tool("Extract Selected"))
-        replace_btn = QPushButton("🔄 Replace Selected")
+        replace_btn = QPushButton("🔄 Replace")
         replace_btn.clicked.connect(lambda: self.handle_img_tool("Replace Selected"))
-        delete_btn = QPushButton("🗑️ Delete Selected")
+        delete_btn = QPushButton("🗑️ Delete")
         delete_btn.clicked.connect(lambda: self.handle_img_tool("Delete Selected"))
-        
-        actions_layout.addWidget(extract_btn)
-        actions_layout.addWidget(replace_btn)
-        actions_layout.addWidget(delete_btn)
-        
+        rebuild_btn = QPushButton("🔄 Rebuild")
+        rebuild_btn.clicked.connect(lambda: self.handle_img_tool("Rebuild"))
+        import_btn = QPushButton("📥 Import")
+        import_btn.clicked.connect(lambda: self.handle_img_tool("Import"))
+        select_all_btn = QPushButton("✔️ Select All")
+        select_all_btn.clicked.connect(lambda: self.handle_img_tool("Select All"))
+
+        # Add buttons to grid layout
+        actions_layout.addWidget(extract_btn, 0, 0)
+        actions_layout.addWidget(replace_btn, 0, 1)
+        actions_layout.addWidget(delete_btn, 0, 2)
+        actions_layout.addWidget(rebuild_btn, 1, 0)
+        actions_layout.addWidget(import_btn, 1, 1)
+        actions_layout.addWidget(select_all_btn, 1, 2)
+
         actions_group.setLayout(actions_layout)
         right_layout.addWidget(actions_group)
         
