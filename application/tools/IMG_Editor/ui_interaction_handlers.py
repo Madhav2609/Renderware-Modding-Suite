@@ -4,20 +4,54 @@ These methods implement the direct UI interactions that connect the ImgEditorToo
 """
 
 from PySide6.QtWidgets import QFileDialog, QDialog, QRadioButton, QDialogButtonBox, QVBoxLayout, QMessageBox, QCheckBox, QComboBox, QLabel, QHBoxLayout, QPushButton
+from application.common.message_box import message_box
+from application.tools.IMG_Editor.IMG_Editor import IMGArchiveTab
 
 def _open_img_file(self):
-    """Open an IMG file"""
-    file_path, _ = QFileDialog.getOpenFileName(
-        self, "Open IMG File", "", "IMG Files (*.img);;All Files (*.*)"
+    """Open a single IMG file"""
+    file_dialog = QFileDialog()
+    file_path, _ = file_dialog.getOpenFileName(
+        self, 
+        "Open IMG Archive", 
+        "", 
+        "IMG Archives (*.img);;All Files (*.*)"
     )
     
-    if not file_path:
+    if file_path:
+        success, message = self.open_archive(file_path)
+        if success:
+            message_box.info(message, "Success", self)
+        else:
+            message_box.error(message, "Error", self)
+    else:
         return
-        
+    
     success, message = self.img_editor.open_img(file_path)
     if not success:
-        from application.common.message_box import message_box
+        # message_box is already imported at the top
         message_box.error(message, "Error Opening IMG", self)
+
+
+
+def _open_multiple_img_files(self):
+        """Open multiple IMG files"""
+        file_dialog = QFileDialog()
+        file_paths, _ = file_dialog.getOpenFileNames(
+            self, 
+            "Open Multiple IMG Archives", 
+            "", 
+            "IMG Archives (*.img);;All Files (*.*)"
+        )
+        
+        if file_paths:
+            success, message = self.open_multiple_archives(file_paths)
+            if success:
+                message_box.info(message, "Success", self)
+            else:
+                message_box.error(message, "Error", self)
+
+
+
 
 def _create_new_img(self):
     """Create a new IMG file"""
@@ -51,28 +85,35 @@ def _create_new_img(self):
         success, message = self.img_editor.create_new_img(file_path, version)
         
         if not success:
-            from application.common.message_box import message_box
             message_box.error(message, "Error Creating IMG", self)
 
 
-def _close_img(self):
-    """Close the current IMG file"""
-    if not self.img_editor.is_img_open():
-        from application.common.message_box import message_box
-        message_box.info("No IMG file is currently open to close.", "No IMG Open", self)
-        return
-        
-    success, message = self.img_editor.close_img()
+def _close_current_img(self):
+    """Close current IMG archive"""
+    current_index = self.archive_tabs.currentIndex()
+    if current_index >= 0 and isinstance(self.archive_tabs.widget(current_index), IMGArchiveTab):
+        self._close_archive_tab(current_index)
+    else:
+        message_box.warning("No archive is currently open.", "No Archive", self)
+
+def _close_all_imgs(self):
+    """Close all IMG archives"""
+    while self.archive_tabs.count() > 0:
+        widget = self.archive_tabs.widget(0)
+        if isinstance(widget, IMGArchiveTab):
+            self._close_archive_tab(0)
+        else:
+            break
+    self.show_empty_state()
+
 
 def _extract_selected(self):
     """Extract selected entries"""
     if not self.img_editor.is_img_open():
-        from application.common.message_box import message_box
         message_box.info("No IMG file is currently open.", "No IMG Open", self)
         return
         
     if not self.img_editor.selected_entries:
-        from application.common.message_box import message_box
         message_box.info("No entries selected to extract.", "No Selection", self)
         return
         
@@ -85,7 +126,6 @@ def _extract_selected(self):
         
     success, message = self.img_editor.extract_selected(output_dir)
     
-    from application.common.message_box import message_box
     if not success:
         message_box.error(message, "Error Extracting Files", self)
     else:
@@ -94,12 +134,10 @@ def _extract_selected(self):
 def _delete_selected(self):
     """Delete selected entries from the current archive (in memory only)"""
     if not self.img_editor.is_img_open():
-        from application.common.message_box import message_box
         message_box.info("No IMG file is currently open.", "No IMG Open", self)
         return
         
     if not self.img_editor.selected_entries:
-        from application.common.message_box import message_box
         message_box.info("No entries selected to delete.", "No Selection", self)
         return
     
@@ -125,7 +163,6 @@ def _delete_selected(self):
     
     if reply == QMessageBox.StandardButton.Yes:
         success, message = self.img_editor.delete_selected()
-        from application.common.message_box import message_box
         if not success:
             message_box.error(message, "Error Deleting Entries", self)
         else:
@@ -135,7 +172,6 @@ def _delete_selected(self):
 def _import_Via_IDE(self):
     """Import DFF models and TXD textures from an IDE file"""
     if not self.img_editor.is_img_open():
-        from application.common.message_box import message_box
         message_box.warning("Please open an IMG file first.", "No IMG File Open", self)
         return
     
@@ -259,7 +295,6 @@ Missing Textures ({len(parsed_info['missing_textures'])}):
         dialog.exec()
         
     except Exception as e:
-        from application.common.message_box import message_box
         message_box.error(f"Error analyzing IDE file: {str(e)}", "IDE Analysis Error", self)
 
 def _proceed_with_ide_import(self, dialog, ide_file, models_dir):
@@ -269,20 +304,17 @@ def _proceed_with_ide_import(self, dialog, ide_file, models_dir):
     try:
         success, message, parsed_info = self.img_controller.import_via_ide(ide_file, models_dir)
         
-        from application.common.message_box import message_box
         if success:
             message_box.info(message, "IDE Import Successful", self)
         else:
             message_box.warning(message, "IDE Import Warning", self)
             
     except Exception as e:
-        from application.common.message_box import message_box
         message_box.error(f"Error during IDE import: {str(e)}", "IDE Import Error", self)
 
 def _import_multiple_files(self):
     """Import multiple files into the current archive"""
     if not self.img_editor.is_img_open():
-        from application.common.message_box import message_box
         message_box.info("No IMG file is currently open.", "No IMG Open", self)
         return
     
@@ -295,7 +327,6 @@ def _import_multiple_files(self):
     
     success, message = self.img_editor.import_multiple_files(file_paths)
     
-    from application.common.message_box import message_box
     if not success:
         message_box.error(message, "Error Importing Files", self)
     else:
@@ -304,7 +335,6 @@ def _import_multiple_files(self):
 def _import_folder(self):
     """Import folder contents into the current archive"""
     if not self.img_editor.is_img_open():
-        from application.common.message_box import message_box
         message_box.info("No IMG file is currently open.", "No IMG Open", self)
         return
     
@@ -367,7 +397,6 @@ def _import_folder(self):
         
         success, message = self.img_editor.import_folder(folder_path, recursive, filter_extensions)
         
-        from application.common.message_box import message_box
         if not success:
             message_box.error(message, "Error Importing Folder", self)
         else:
@@ -376,7 +405,6 @@ def _import_folder(self):
 def _get_import_preview(self):
     """Show import preview for selected files"""
     if not self.img_editor.is_img_open():
-        from application.common.message_box import message_box
         message_box.info("No IMG file is currently open.", "No IMG Open", self)
         return
     
@@ -390,7 +418,6 @@ def _get_import_preview(self):
     success, preview_data = self.img_editor.get_import_preview(file_paths)
     
     if not success:
-        from application.common.message_box import message_box
         message_box.error(preview_data, "Error Generating Preview", self)
         return
     
@@ -457,7 +484,6 @@ def _proceed_with_import(self, dialog, file_paths):
     dialog.accept()
     success, message = self.img_editor.import_multiple_files(file_paths)
     
-    from application.common.message_box import message_box
     if not success:
         message_box.error(message, "Error Importing Files", self)
     else:
@@ -466,14 +492,12 @@ def _proceed_with_import(self, dialog, file_paths):
 def _show_modification_status(self):
     """Show detailed modification status"""
     if not self.img_editor.is_img_open():
-        from application.common.message_box import message_box
         message_box.info("No IMG file is currently open.", "No IMG Open", self)
         return
     
     status = self.img_editor.get_detailed_modification_status()
     
     if not status['has_archive']:
-        from application.common.message_box import message_box
         message_box.info("No archive information available.", "No Archive", self)
         return
     
@@ -534,7 +558,6 @@ def _restore_all_deleted(self, parent_dialog):
     """Restore all deleted entries"""
     success, message = self.img_editor.restore_all_deleted_entries()
     
-    from application.common.message_box import message_box
     if success:
         message_box.info(message, "Entries Restored", parent_dialog)
         parent_dialog.accept()  # Close the status dialog to refresh

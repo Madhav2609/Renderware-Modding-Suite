@@ -221,15 +221,6 @@ class IMGController(QObject):
             return False, f"Error creating IMG file: {str(e)}"
     
     
-    def close_img(self):
-        """Closes the current IMG archive."""
-        if not self.current_img:
-            return False, "No IMG file is currently open"
-        
-        self.current_img = None
-        self.selected_entries = []
-        self.img_closed.emit()
-        return True, "IMG file closed"
         
     # Entry Management
     

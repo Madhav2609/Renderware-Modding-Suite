@@ -558,6 +558,7 @@ class ImgEditorTool(QWidget):
             
             def open_img(self, file_path):
                 return self.tool.open_archive(file_path)
+                
             
             def create_new_img(self, file_path, version):
                 return self.tool.img_controller.create_new_img(file_path, version)
@@ -623,8 +624,10 @@ class ImgEditorTool(QWidget):
         try:
             from .ui_interaction_handlers import (
                 _open_img_file,
+                _open_multiple_img_files,
                 _create_new_img,
-                _close_img,
+                _close_current_img,
+                _close_all_imgs,
                 _extract_selected,
                 _delete_selected,
                 _import_Via_IDE,
@@ -641,8 +644,10 @@ class ImgEditorTool(QWidget):
             
             # Bind imported functions as methods of this class
             self._open_img_file = _open_img_file.__get__(self, self.__class__)
+            self._open_multiple_img_files = _open_multiple_img_files.__get__(self, self.__class__)
             self._create_new_img = _create_new_img.__get__(self, self.__class__)
-            self._close_img = _close_img.__get__(self, self.__class__)
+            self._close_current_img = _close_current_img.__get__(self, self.__class__)
+            self._close_all_imgs = _close_all_imgs.__get__(self, self.__class__)
             self._extract_selected = _extract_selected.__get__(self, self.__class__)
             self._delete_selected = _delete_selected.__get__(self, self.__class__)
             self._import_Via_IDE = _import_Via_IDE.__get__(self, self.__class__)
@@ -659,8 +664,10 @@ class ImgEditorTool(QWidget):
         except ImportError:
             # If ui_interaction_handlers doesn't exist, use fallback methods
             self._open_img_file = self._fallback_open_img_file
+            self._open_multiple_img_files = self._fallback_open_multiple_img_files
             self._create_new_img = self._fallback_create_new_img
-            self._close_img = self._fallback_close_img
+            self._close_current_img = self._fallback_close_current_img
+            self._close_all_imgs = self._fallback_close_all_imgs
             self._extract_selected = self._fallback_extract_selected
             self._delete_selected = self._fallback_delete_selected
             self._import_Via_IDE = self._fallback_import_Via_IDE
@@ -670,8 +677,11 @@ class ImgEditorTool(QWidget):
             self._show_modification_status = self._fallback_show_modification_status
             self._proceed_with_import = self._fallback_proceed_with_import
             self._proceed_with_ide_import = self._fallback_proceed_with_ide_import
-    
-    
+
+    def _fallback_open_multiple_img_files(self):
+        """Fallback method for opening multiple IMG files"""
+        message_box.info("Open multiple IMG files feature is not implemented yet.", "Feature Not Implemented", self)
+
     def _fallback_extract_selected(self):
         """Fallback method for extracting selected entries"""
         selected_entries = self.get_selected_entries()
@@ -695,11 +705,15 @@ class ImgEditorTool(QWidget):
     def _fallback_open_img_file(self):
         """Fallback method for opening IMG file"""
         message_box.info("Open IMG file feature is not implemented yet.", "Feature Not Implemented", self)
-    
-    def _fallback_close_img(self):
-        """Fallback method for closing IMG file"""
-        message_box.info("Close IMG file feature is not implemented yet.", "Feature Not Implemented", self)
-    
+
+    def _fallback_close_current_img(self):
+        """Fallback method for closing current IMG file"""
+        message_box.info("Close current IMG file feature is not implemented yet.", "Feature Not Implemented", self)
+
+    def _fallback_close_all_imgs(self):
+        """Fallback method for closing all IMG files"""
+        message_box.info("Close all IMG files feature is not implemented yet.", "Feature Not Implemented", self)
+
     def _fallback_import_multiple_files(self):
         """Fallback method for importing multiple files"""
         message_box.info("Import multiple files feature is not implemented yet.", "Feature Not Implemented", self)
@@ -1243,7 +1257,10 @@ class ImgEditorTool(QWidget):
         close_all_btn = QPushButton("❌ Close All")
         close_all_btn.clicked.connect(lambda: self.handle_img_tool("Close All"))
         
-                
+        # Modification status button
+        mod_status_btn = QPushButton("📊 Mod Status")
+        mod_status_btn.clicked.connect(lambda: self.handle_img_tool("Show Modification Status"))
+           
         
         # Add buttons to grid - using a 3x3 grid for better organization
         file_grid.addWidget(create_new_btn, 0, 0)
@@ -1253,7 +1270,7 @@ class ImgEditorTool(QWidget):
         file_grid.addWidget(close_img_btn, 1, 1)
         
         file_grid.addWidget(close_all_btn, 2, 0)
-        
+        file_grid.addWidget(mod_status_btn, 2, 1)
         file_ops_group.setLayout(file_grid)
         
         # Add to parent layout
@@ -1337,9 +1354,6 @@ class ImgEditorTool(QWidget):
         export_by_type_btn = QPushButton("📤 Export by Type")
         export_by_type_btn.clicked.connect(lambda: self.handle_img_tool("Export by Type"))
         
-        # Modification status button
-        mod_status_btn = QPushButton("📊 Mod Status")
-        mod_status_btn.clicked.connect(lambda: self.handle_img_tool("Show Modification Status"))
         
         # Add buttons to grid (3 columns now)
         import_grid.addWidget(import_file_btn, 0, 0)
@@ -1350,7 +1364,6 @@ class ImgEditorTool(QWidget):
         import_grid.addWidget(export_all_btn, 0, 1)
         import_grid.addWidget(export_selected_btn, 1, 1)
         import_grid.addWidget(export_by_type_btn, 2, 1)
-        import_grid.addWidget(mod_status_btn, 3, 1)
         
         import_export_group.setLayout(import_grid)
         
@@ -1361,9 +1374,9 @@ class ImgEditorTool(QWidget):
         """Handle IMG tool action"""
         # Handle different tool actions using imported handlers
         if tool_name == "Open IMG":
-            self._open_single_img()
+            self._open_img_file()
         elif tool_name == "Open Multiple Files":
-            self._open_multiple_imgs()
+            self._open_multiple_img_files()
         elif tool_name == "Close IMG":
             self._close_current_img()
         elif tool_name == "Close All":
@@ -1389,61 +1402,3 @@ class ImgEditorTool(QWidget):
             # For other tools not yet implemented
             message_box.info(f"The '{tool_name}' feature is not implemented yet.", "Feature Not Implemented", self)
     
-    def _open_single_img(self):
-        """Open a single IMG file"""
-        file_dialog = QFileDialog()
-        file_path, _ = file_dialog.getOpenFileName(
-            self, 
-            "Open IMG Archive", 
-            "", 
-            "IMG Archives (*.img);;All Files (*.*)"
-        )
-        
-        if file_path:
-            success, message = self.open_archive(file_path)
-            if success:
-                message_box.info(message, "Success", self)
-            else:
-                message_box.error(message, "Error", self)
-
-    def _open_multiple_imgs(self):
-        """Open multiple IMG files"""
-        file_dialog = QFileDialog()
-        file_paths, _ = file_dialog.getOpenFileNames(
-            self, 
-            "Open Multiple IMG Archives", 
-            "", 
-            "IMG Archives (*.img);;All Files (*.*)"
-        )
-        
-        if file_paths:
-            success, message = self.open_multiple_archives(file_paths)
-            if success:
-                message_box.info(message, "Success", self)
-            else:
-                message_box.error(message, "Error", self)
-
-    def _close_current_img(self):
-        """Close current IMG archive"""
-        current_index = self.archive_tabs.currentIndex()
-        if current_index >= 0 and isinstance(self.archive_tabs.widget(current_index), IMGArchiveTab):
-            self._close_archive_tab(current_index)
-        else:
-            message_box.warning("No archive is currently open.", "No Archive", self)
-
-    def _close_all_imgs(self):
-        """Close all IMG archives"""
-        while self.archive_tabs.count() > 0:
-            widget = self.archive_tabs.widget(0)
-            if isinstance(widget, IMGArchiveTab):
-                self._close_archive_tab(0)
-            else:
-                break
-        self.show_empty_state()
-    
-    def load_img_file(self, file_path):
-        """Load an IMG file into the editor (public interface)"""
-        success, message = self.open_archive(file_path)
-        if not success:
-            message_box.error(message, "Error Loading IMG", self)
-        return success

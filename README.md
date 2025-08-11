@@ -135,25 +135,6 @@ The application features a comprehensive theme system designed to provide a cons
 - **Palette Override:** Uses Qt's palette system to ensure even system-drawn widgets follow the dark theme
 - **No Hardcoded Colors:** All UI components use theme constants for maintainable and consistent styling
 
-#### Theme Constants
-The theme provides organized color constants for different UI elements:
-- **Background Colors:** Primary, secondary, and tertiary backgrounds for layered UI
-- **Text Colors:** Primary, secondary, accent, success, warning, and error text colors
-- **Border Colors:** Consistent border styling across all components
-- **Interactive Colors:** Hover, selection, and button state colors
-
-#### Implementation
-```python
-from application.styles import ModernDarkTheme
-
-# Apply theme to application
-theme = ModernDarkTheme()
-app.setStyleSheet(theme.get_main_stylesheet())
-theme.apply_dark_palette(app)
-
-# Use theme constants in widgets
-widget.setStyleSheet(f"background-color: {ModernDarkTheme.BACKGROUND_PRIMARY};")
-```
 
 ### Responsive Design
 
