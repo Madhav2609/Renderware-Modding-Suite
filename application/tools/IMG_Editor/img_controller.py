@@ -353,7 +353,48 @@ class IMGController(QObject):
             error_msg = f"Error importing from IDE file: {str(e)}"
             self.operation_completed.emit(False, error_msg)
             return False, error_msg, None
-    
+
+    def get_ide_import_preview(self, ide_file_path, models_directory=None):
+        """
+        Parse IDE file and check for existence of DFF and TXD files in the given directory.
+        Returns (success, preview_info or error_message)
+        """
+        if not ide_file_path or not os.path.exists(ide_file_path):
+            return False, "Invalid IDE file path"
+        if not models_directory or not os.path.isdir(models_directory):
+            return False, "Invalid models directory"
+        try:
+            from .core.Import_Export import Import_Export
+            parsed_info = {
+                'objs_count': 0,
+                'tobj_count': 0,
+                'unique_models': set(),
+                'unique_textures': set(),
+                'found_models': [],
+                'found_textures': [],
+                'missing_models': [],
+                'missing_textures': []
+            }
+            models, textures = Import_Export._parse_ide_file(ide_file_path, parsed_info)
+            for model_name in models:
+                dff_path = Import_Export._find_file_in_directory(models_directory, f"{model_name}.dff")
+                if dff_path:
+                    parsed_info['found_models'].append(model_name)
+                else:
+                    parsed_info['missing_models'].append(model_name)
+            for texture_name in textures:
+                txd_path = Import_Export._find_file_in_directory(models_directory, f"{texture_name}.txd")
+                if txd_path:
+                    parsed_info['found_textures'].append(texture_name)
+                else:
+                    parsed_info['missing_textures'].append(texture_name)
+            return True, parsed_info
+        except Exception as e:
+            return False, f"Error analyzing IDE file: {str(e)}"
+
+
+
+
     def import_multiple_files(self, file_paths, entry_names=None):
         """
         Import multiple files into the current archive (memory only operation).

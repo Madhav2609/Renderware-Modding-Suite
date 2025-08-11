@@ -209,45 +209,20 @@ def _import_Via_IDE(self):
     info_label = QLabel(f"IDE File: {ide_file}\nModels Directory: {models_dir}")
     layout.addWidget(info_label)
     
-    # Parse IDE file first to show preview
+    # Get preview info from controller instead of parsing in UI
     try:
-        from application.tools.IMG_Editor.core.Import_Export import Import_Export
-        
-        # Parse IDE to get preview information
-        parsed_info = {
-            'objs_count': 0,
-            'tobj_count': 0,
-            'unique_models': set(),
-            'unique_textures': set(),
-            'found_models': [],
-            'found_textures': [],
-            'missing_models': [],
-            'missing_textures': []
-        }
-        
-        models, textures = Import_Export._parse_ide_file(ide_file, parsed_info)
-        
-        # Check which files exist
-        for model_name in models:
-            dff_path = Import_Export._find_file_in_directory(models_dir, f"{model_name}.dff")
-            if dff_path:
-                parsed_info['found_models'].append(model_name)
-            else:
-                parsed_info['missing_models'].append(model_name)
-        
-        for texture_name in textures:
-            txd_path = Import_Export._find_file_in_directory(models_dir, f"{texture_name}.txd")
-            if txd_path:
-                parsed_info['found_textures'].append(texture_name)
-            else:
-                parsed_info['missing_textures'].append(texture_name)
-        
+        success, preview_info = self.img_controller.get_ide_import_preview(ide_file, models_dir)
+        if not success:
+            message_box.error(preview_info, "IDE Analysis Error", self)
+            return
+
         # Create preview content
         preview_text = QTextEdit()
         preview_text.setReadOnly(True)
-        
+
+        parsed_info = preview_info
         preview_content = f"""IDE File Analysis:
-        
+
 Sections Found:
 • objs entries: {parsed_info['objs_count']}
 • tobj entries: {parsed_info['tobj_count']}
@@ -272,28 +247,28 @@ Missing Textures ({len(parsed_info['missing_textures'])}):
 {chr(10).join(f"  ✗ {texture}.txd" for texture in parsed_info['missing_textures'][:10])}
 {f"  ... and {len(parsed_info['missing_textures']) - 10} more" if len(parsed_info['missing_textures']) > 10 else ""}
 """
-        
+
         preview_text.setPlainText(preview_content)
         layout.addWidget(preview_text)
-        
+
         # Buttons
         button_layout = QHBoxLayout()
-        
+
         import_btn = QPushButton("Import Found Files")
         import_btn.setEnabled(len(parsed_info['found_models']) > 0 or len(parsed_info['found_textures']) > 0)
-        
+
         cancel_btn = QPushButton("Cancel")
-        
+
         button_layout.addWidget(import_btn)
         button_layout.addWidget(cancel_btn)
         layout.addLayout(button_layout)
-        
+
         # Connect buttons
         import_btn.clicked.connect(lambda: self._proceed_with_ide_import(dialog, ide_file, models_dir))
         cancel_btn.clicked.connect(dialog.reject)
-        
+
         dialog.exec()
-        
+
     except Exception as e:
         message_box.error(f"Error analyzing IDE file: {str(e)}", "IDE Analysis Error", self)
 

@@ -352,10 +352,8 @@ class FilterPanel(QWidget):
     
     def _setup_ui(self):
         layout = QHBoxLayout(self)
-        rm = get_responsive_manager()
-        spacing = rm.get_spacing_config()
-        layout.setContentsMargins(spacing['medium'], spacing['medium'], spacing['medium'], spacing['medium'])
-        layout.setSpacing(spacing['large'])
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(15)
 
         # File type filter
         type_group = QGroupBox("File Type Filter")
@@ -454,91 +452,19 @@ class IMGArchiveTab(QWidget):
         self.setup_ui()
         self.update_display()
     
-    def _setup_ui(self):
-        rm = get_responsive_manager()
-        fonts = rm.get_font_config()
-        spacing = rm.get_spacing_config()
-        button_size = rm.get_button_size()
-
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(spacing['medium'], spacing['medium'], spacing['medium'], spacing['medium'])
-        layout.setSpacing(spacing['large'])
-
-        # File type filter
-        type_group = QGroupBox("File Type Filter")
-        type_layout = QHBoxLayout(type_group)
-        self.type_combo = QComboBox()
-        self.type_combo.addItems(['All', 'DFF', 'TXD', 'COL', 'IFP', 'IPL', 'DAT', 'WAV'])
-        self.type_combo.currentTextChanged.connect(self._filter_changed)
-        type_layout.addWidget(self.type_combo)
-
-        # RenderWare version filter
-        rw_group = QGroupBox("RenderWare Version Filter")
-        rw_layout = QHBoxLayout(rw_group)
-        self.rw_version_combo = QComboBox()
-        self.rw_version_combo.addItems(['All Versions', 'RenderWare Only', 'Non-RenderWare', 'GTA III (3.1.0.1)', 'Vice City (3.3.0.2)', 'San Andreas (3.6.0.3)', 'San Andreas (3.4.0.3)', 'Liberty City Stories (3.5.0.0)', 'Vice City Stories (3.5.0.2)', 'COL1 (GTA III/VC)', 'COL2 (GTA SA)', 'COL3 (GTA SA Advanced)', 'COL4 (Extended)'])
-        self.rw_version_combo.currentTextChanged.connect(self._filter_changed)
-        rw_layout.addWidget(self.rw_version_combo)
-
-        # Search filter
-        search_group = QGroupBox("Search")
-        search_layout = QHBoxLayout(search_group)
-        self.search_edit = QLineEdit()
-        self.search_edit.setPlaceholderText("🔍 Search entries...")
-        self.search_edit.textChanged.connect(self._filter_changed)
-        search_layout.addWidget(self.search_edit)
-
-        combo_style = f"""
-            QComboBox {{
-                background-color: {ModernDarkTheme.BACKGROUND_TERTIARY};
-                color: white;
-                border: 1px solid {ModernDarkTheme.BORDER_PRIMARY};
-                border-radius: 3px;
-                padding: {spacing['small']}px;
-                min-width: {rm.get_scaled_size(button_size[0] - 20)}px;
-                font-size: {fonts['body']['size']}px;
-            }}
-            QComboBox:hover {{
-                border: 1px solid {ModernDarkTheme.TEXT_ACCENT};
-            }}
-            QComboBox::drop-down {{
-                subcontrol-origin: padding;
-                subcontrol-position: top right;
-                width: {rm.get_scaled_size(spacing['medium'] + 5)}px;
-                border-left: 1px solid {ModernDarkTheme.BORDER_PRIMARY};
-            }}
-        """
-        self.type_combo.setStyleSheet(combo_style)
-        self.rw_version_combo.setStyleSheet(combo_style)
-
-        self.search_edit.setStyleSheet(f"""
-            QLineEdit {{
-                background-color: {ModernDarkTheme.BACKGROUND_TERTIARY};
-                color: white;
-                border: 1px solid {ModernDarkTheme.BORDER_PRIMARY};
-                border-radius: 3px;
-                padding: {spacing['small']}px;
-                font-size: {fonts['body']['size']}px;
-            }}
-            QLineEdit:focus {{
-                border: 1px solid {ModernDarkTheme.TEXT_ACCENT};
-            }}
-        """)
-
-        layout.addWidget(type_group)
-        layout.addWidget(rw_group)
-        layout.addWidget(search_group)
+    def setup_ui(self):
+        """Setup UI for individual archive tab"""
+        layout = QVBoxLayout(self)
         # Filter panel
         self.filter_panel = FilterPanel()
         self.filter_panel.filter_changed.connect(self._on_filter_changed)
         layout.addWidget(self.filter_panel)
-        
+
         # Entries table
         self.entries_table = IMGEntriesTable()
         self.entries_table.entry_double_clicked.connect(self._on_entry_double_clicked)
         self.entries_table.entry_selected.connect(self._on_entry_selected)
-        layout.addWidget(self.entries_table)
-        
+        layout.addWidget(self.entries_table)        
     
     def update_display(self):
         """Update the display with current archive data"""
