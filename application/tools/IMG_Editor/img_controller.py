@@ -8,7 +8,7 @@ from pathlib import Path
 import os
 
 from PySide6.QtWidgets import QMessageBox
-from PySide6.QtCore import QObject, Signal
+from PySide6.QtCore import QObject, Signal, QThread, QMutex, QMutexLocker
 
 # Import core modules
 from .core import (
@@ -19,6 +19,366 @@ from .core import (
     Import_Export
 )
 from .core.File_Operations import ArchiveManager
+
+
+class IMGWorkerThread(QThread):
+    """
+    Worker thread for handling heavy IMG operations without blocking the UI.
+    """
+    # Progress signals
+    progress_updated = Signal(int, str)  # progress_percentage, message
+    operation_completed = Signal(bool, str, object)  # success, message, result_data
+    
+    def __init__(self, operation_type, operation_data, parent=None):
+        super().__init__(parent)
+        self.operation_type = operation_type
+        self.operation_data = operation_data
+        self.mutex = QMutex()
+        self._cancelled = False
+        
+    def run(self):
+        """Execute the operation based on type."""
+        try:
+            if self.operation_type == "open_archive":
+                self._open_archive_operation()
+            elif self.operation_type == "open_multiple_archives":
+                self._open_multiple_archives_operation()
+            elif self.operation_type == "import_multiple_files":
+                self._import_multiple_files_operation()
+            elif self.operation_type == "import_folder":
+                self._import_folder_operation()
+            elif self.operation_type == "import_via_ide":
+                self._import_via_ide_operation()
+            elif self.operation_type == "extract_selected":
+                self._extract_selected_operation()
+            elif self.operation_type == "delete_selected":
+                self._delete_selected_operation()
+            else:
+                self.operation_completed.emit(False, f"Unknown operation type: {self.operation_type}", None)
+                
+        except Exception as e:
+            self.operation_completed.emit(False, f"Operation failed: {str(e)}", None)
+    
+    def cancel(self):
+        """Cancel the current operation."""
+        with QMutexLocker(self.mutex):
+            self._cancelled = True
+    
+    def _check_cancelled(self):
+        """Check if operation was cancelled."""
+        with QMutexLocker(self.mutex):
+            return self._cancelled
+    
+    def _open_archive_operation(self):
+        """Open a single IMG archive."""
+        file_path = self.operation_data['file_path']
+        archive_manager = self.operation_data['archive_manager']
+        
+        self.progress_updated.emit(10, f"Opening archive: {Path(file_path).name}")
+        
+        try:
+            img_archive = File_Operations.open_archive(file_path, archive_manager)
+            
+            if self._check_cancelled():
+                return
+            
+            self.progress_updated.emit(50, "Analyzing RenderWare versions...")
+            
+            # Analyze RenderWare versions for all entries
+            if img_archive and hasattr(img_archive, 'entries') and img_archive.entries:
+                total_entries = len(img_archive.entries)
+                for i, entry in enumerate(img_archive.entries):
+                    if self._check_cancelled():
+                        return
+                    
+                    img_archive.analyze_entry_rw_version(entry)
+                    progress = 50 + int((i / total_entries) * 40)
+                    self.progress_updated.emit(progress, f"Analyzing entry {i+1}/{total_entries}")
+            
+            self.progress_updated.emit(100, "Archive opened successfully")
+            self.operation_completed.emit(True, f"Successfully opened {Path(file_path).name}", img_archive)
+            
+        except Exception as e:
+            self.operation_completed.emit(False, f"Error opening IMG file: {str(e)}", None)
+    
+    def _open_multiple_archives_operation(self):
+        """Open multiple IMG archives."""
+        file_paths = self.operation_data['file_paths']
+        archive_manager = self.operation_data['archive_manager']
+        
+        total_files = len(file_paths)
+        success_count = 0
+        failed_files = []
+        error_messages = []
+        
+        for i, file_path in enumerate(file_paths):
+            if self._check_cancelled():
+                return
+            
+            progress = int((i / total_files) * 80)
+            self.progress_updated.emit(progress, f"Opening archive {i+1}/{total_files}: {Path(file_path).name}")
+            
+            try:
+                img_archive = File_Operations.open_archive(file_path, archive_manager)
+                
+                if self._check_cancelled():
+                    return
+                
+                # Analyze RenderWare versions
+                if img_archive and hasattr(img_archive, 'entries') and img_archive.entries:
+                    img_archive.analyze_all_entries_rw_versions()
+                
+                success_count += 1
+                
+            except Exception as e:
+                failed_files.append(file_path)
+                error_messages.append(str(e))
+        
+        if self._check_cancelled():
+            return
+        
+        self.progress_updated.emit(100, "All archives processed")
+        
+        # Prepare result message
+        if success_count == total_files:
+            message = f"Successfully opened {success_count} archive(s)"
+        elif success_count > 0:
+            failed_names = [Path(f).name for f in failed_files]
+            message = f"Opened {success_count}/{total_files} archives. Failed: {', '.join(failed_names)}"
+        else:
+            message = f"Failed to open any archives: {'; '.join(error_messages)}"
+        
+        result_data = {
+            'success_count': success_count,
+            'failed_files': failed_files,
+            'error_messages': error_messages
+        }
+        
+        self.operation_completed.emit(success_count > 0, message, result_data)
+    
+    def _import_multiple_files_operation(self):
+        """Import multiple files into an archive."""
+        archive = self.operation_data['archive']
+        file_paths = self.operation_data['file_paths']
+        entry_names = self.operation_data.get('entry_names')
+        
+        total_files = len(file_paths)
+        imported_entries = []
+        failed_files = []
+        
+        for i, file_path in enumerate(file_paths):
+            if self._check_cancelled():
+                return
+            
+            progress = int((i / total_files) * 90)
+            self.progress_updated.emit(progress, f"Importing file {i+1}/{total_files}: {Path(file_path).name}")
+            
+            try:
+                entry_name = entry_names[i] if entry_names and i < len(entry_names) else None
+                entry = Import_Export.import_file(archive, file_path, entry_name)
+                
+                if entry:
+                    imported_entries.append(entry)
+                else:
+                    failed_files.append(file_path)
+                    
+            except Exception as e:
+                failed_files.append(file_path)
+        
+        if self._check_cancelled():
+            return
+        
+        self.progress_updated.emit(100, "Import completed")
+        
+        result_data = {
+            'imported_entries': imported_entries,
+            'failed_files': failed_files
+        }
+        
+        success_count = len(imported_entries)
+        total_count = len(file_paths)
+        
+        if success_count == total_count:
+            message = f"Successfully imported {success_count} file(s)"
+        elif success_count > 0:
+            message = f"Imported {success_count} of {total_count} files. {len(failed_files)} files failed."
+        else:
+            message = f"Failed to import any files. {len(failed_files)} files failed."
+        
+        self.operation_completed.emit(success_count > 0, message, result_data)
+    
+    def _import_folder_operation(self):
+        """Import all files from a folder."""
+        archive = self.operation_data['archive']
+        folder_path = self.operation_data['folder_path']
+        recursive = self.operation_data.get('recursive', False)
+        filter_extensions = self.operation_data.get('filter_extensions')
+        
+        self.progress_updated.emit(10, f"Scanning folder: {Path(folder_path).name}")
+        
+        try:
+            imported_entries, failed_files = Import_Export.import_folder(
+                archive, folder_path, recursive, filter_extensions
+            )
+            
+            if self._check_cancelled():
+                return
+            
+            self.progress_updated.emit(100, "Folder import completed")
+            
+            result_data = {
+                'imported_entries': imported_entries,
+                'failed_files': failed_files
+            }
+            
+            success_count = len(imported_entries)
+            failed_count = len(failed_files)
+            
+            if success_count > 0:
+                message = f"Successfully imported {success_count} file(s) from folder"
+                if failed_count > 0:
+                    message += f". {failed_count} files failed."
+            else:
+                message = f"No files were imported. {failed_count} files failed or no matching files found."
+            
+            self.operation_completed.emit(success_count > 0, message, result_data)
+            
+        except Exception as e:
+            self.operation_completed.emit(False, f"Error importing folder: {str(e)}", None)
+    
+    def _import_via_ide_operation(self):
+        """Import files via IDE file."""
+        archive = self.operation_data['archive']
+        ide_file_path = self.operation_data['ide_file_path']
+        models_directory = self.operation_data.get('models_directory')
+        
+        self.progress_updated.emit(10, "Parsing IDE file...")
+        
+        try:
+            imported_entries, failed_files, parsed_info = Import_Export.import_via_ide(
+                archive, ide_file_path, models_directory
+            )
+            
+            if self._check_cancelled():
+                return
+            
+            self.progress_updated.emit(100, "IDE import completed")
+            
+            result_data = {
+                'imported_entries': imported_entries,
+                'failed_files': failed_files,
+                'parsed_info': parsed_info
+            }
+            
+            success_count = len(imported_entries)
+            
+            if success_count > 0:
+                message_parts = [
+                    f"IDE Import completed:",
+                    f"• Successfully imported: {success_count} files",
+                    f"• Models found: {len(parsed_info['found_models'])}",
+                    f"• Textures found: {len(parsed_info['found_textures'])}",
+                ]
+                
+                if parsed_info['missing_models']:
+                    message_parts.append(f"• Missing models: {len(parsed_info['missing_models'])}")
+                if parsed_info['missing_textures']:
+                    message_parts.append(f"• Missing textures: {len(parsed_info['missing_textures'])}")
+                if len(failed_files) > 0:
+                    message_parts.append(f"• Failed imports: {len(failed_files)}")
+                
+                message = "\n".join(message_parts)
+            else:
+                message = "No files were imported from the IDE file"
+                if parsed_info:
+                    if parsed_info['missing_models'] or parsed_info['missing_textures']:
+                        message += f"\nMissing files: {len(parsed_info['missing_models'])} models, {len(parsed_info['missing_textures'])} textures"
+            
+            self.operation_completed.emit(success_count > 0, message, result_data)
+            
+        except Exception as e:
+            self.operation_completed.emit(False, f"Error importing from IDE file: {str(e)}", None)
+    
+    def _extract_selected_operation(self):
+        """Extract selected entries."""
+        archive = self.operation_data['archive']
+        selected_entries = self.operation_data['selected_entries']
+        output_dir = self.operation_data['output_dir']
+        
+        total_entries = len(selected_entries)
+        extracted_files = []
+        
+        for i, entry in enumerate(selected_entries):
+            if self._check_cancelled():
+                return
+            
+            progress = int((i / total_entries) * 90)
+            self.progress_updated.emit(progress, f"Extracting {i+1}/{total_entries}: {entry.name}")
+            
+            try:
+                output_path = Import_Export.export_entry(archive, entry, output_dir=output_dir)
+                extracted_files.append(output_path)
+            except Exception as e:
+                # Continue with other files even if one fails
+                pass
+        
+        if self._check_cancelled():
+            return
+        
+        self.progress_updated.emit(100, "Extraction completed")
+        
+        result_data = {
+            'extracted_files': extracted_files
+        }
+        
+        message = f"Extracted {len(extracted_files)} file(s) to {output_dir}"
+        self.operation_completed.emit(True, message, result_data)
+    
+    def _delete_selected_operation(self):
+        """Delete selected entries."""
+        archive = self.operation_data['archive']
+        selected_entries = self.operation_data['selected_entries']
+        
+        total_entries = len(selected_entries)
+        success_count = 0
+        failed_entries = []
+        
+        for i, entry in enumerate(selected_entries):
+            if self._check_cancelled():
+                return
+            
+            progress = int((i / total_entries) * 90)
+            self.progress_updated.emit(progress, f"Deleting {i+1}/{total_entries}: {entry.name}")
+            
+            try:
+                # Use the batch delete method for better performance
+                success, failed = archive.delete_entries([entry])
+                if success > 0:
+                    success_count += 1
+                else:
+                    failed_entries.append(entry)
+            except Exception as e:
+                failed_entries.append(entry)
+        
+        if self._check_cancelled():
+            return
+        
+        self.progress_updated.emit(100, "Deletion completed")
+        
+        result_data = {
+            'success_count': success_count,
+            'failed_entries': failed_entries
+        }
+        
+        if success_count == total_entries:
+            message = f"Successfully deleted {success_count} entries"
+        elif success_count > 0:
+            message = f"Deleted {success_count} of {total_entries} entries. {len(failed_entries)} entries could not be deleted."
+        else:
+            message = "No entries could be deleted"
+        
+        self.operation_completed.emit(success_count > 0, message, result_data)
+
 
 class IMGController(QObject):
     """
@@ -40,6 +400,69 @@ class IMGController(QObject):
         self.selected_entries = []  # List of currently selected entries
         self.recent_files = []  # List of recently opened files
         self.max_recent_files = 10  # Maximum number of recent files to track
+        
+        # Threading support
+        self.worker_thread = None
+        self.current_operation = None
+    
+    def _start_worker_operation(self, operation_type, operation_data):
+        """Start a worker thread for heavy operations."""
+        # Cancel any existing operation
+        if self.worker_thread and self.worker_thread.isRunning():
+            self.worker_thread.cancel()
+            self.worker_thread.wait()
+        
+        # Create and start new worker thread
+        self.worker_thread = IMGWorkerThread(operation_type, operation_data, self)
+        self.current_operation = operation_type
+        
+        # Connect signals
+        self.worker_thread.progress_updated.connect(self.operation_progress.emit)
+        self.worker_thread.operation_completed.connect(self._on_worker_completed)
+        
+        # Start the thread
+        self.worker_thread.start()
+    
+    def _on_worker_completed(self, success, message, result_data):
+        """Handle completion of worker thread operations."""
+        operation_type = self.current_operation
+        self.current_operation = None
+        
+        # Handle specific operation results
+        if operation_type == "open_archive" and success:
+            img_archive = result_data
+            self.img_loaded.emit(img_archive)
+        elif operation_type == "open_multiple_archives" and success:
+            # Emit signals for successfully opened archives
+            for file_path in self.archive_manager.get_archive_paths():
+                img_archive = self.archive_manager.get_archive(file_path)
+                if img_archive:
+                    self.img_loaded.emit(img_archive)
+        elif operation_type in ["import_multiple_files", "import_folder", "import_via_ide"] and success:
+            # Update UI with new entries
+            active_archive = self.get_active_archive()
+            if active_archive:
+                self.entries_updated.emit(active_archive.entries)
+        elif operation_type == "delete_selected" and success:
+            # Clear selection and update UI
+            self.selected_entries.clear()
+            active_archive = self.get_active_archive()
+            if active_archive:
+                self.entries_updated.emit(active_archive.entries)
+        
+        # Emit completion signal
+        self.operation_completed.emit(success, message)
+    
+    def cancel_current_operation(self):
+        """Cancel the currently running operation."""
+        if self.worker_thread and self.worker_thread.isRunning():
+            self.worker_thread.cancel()
+            return True
+        return False
+    
+    def is_operation_running(self):
+        """Check if a heavy operation is currently running."""
+        return self.worker_thread is not None and self.worker_thread.isRunning()
     
     # Archive Management Methods
     
@@ -54,20 +477,17 @@ class IMGController(QObject):
                 self.archive_switched.emit(active_archive)
                 return True, f"Switched to already open archive: {Path(file_path).name}"
             
-            # Open new archive
-            img_archive = File_Operations.open_archive(file_path, self.archive_manager)
+            # Start worker thread for opening archive
+            operation_data = {
+                'file_path': file_path,
+                'archive_manager': self.archive_manager
+            }
+            self._start_worker_operation("open_archive", operation_data)
             
             # Add to recent files
             self._add_to_recent_files(file_path)
             
-            # Analyze RenderWare versions for all entries
-            if img_archive and hasattr(img_archive, 'entries') and img_archive.entries:
-                img_archive.analyze_all_entries_rw_versions()
-            
-            # Emit signal with the loaded archive
-            self.img_loaded.emit(img_archive)
-            
-            return True, f"Successfully opened {Path(file_path).name}"
+            return True, "Opening archive..."  # Return immediately, actual result comes via signal
             
         except Exception as e:
             return False, f"Error opening IMG file: {str(e)}"
@@ -78,38 +498,18 @@ class IMGController(QObject):
             return False, "No files selected"
         
         try:
-            success_count, failed_files, error_messages = File_Operations.open_multiple_archives(
-                file_paths, self.archive_manager
-            )
+            # Start worker thread for opening multiple archives
+            operation_data = {
+                'file_paths': file_paths,
+                'archive_manager': self.archive_manager
+            }
+            self._start_worker_operation("open_multiple_archives", operation_data)
             
             # Add successful files to recent files
             for file_path in file_paths:
-                if file_path not in failed_files:
-                    self._add_to_recent_files(file_path)
+                self._add_to_recent_files(file_path)
             
-            # Analyze RenderWare versions for all successfully opened archives
-            for file_path in self.archive_manager.get_archive_paths():
-                img_archive = self.archive_manager.get_archive(file_path)
-                if img_archive and hasattr(img_archive, 'entries') and img_archive.entries:
-                    if not hasattr(img_archive, '_rw_analyzed'):
-                        img_archive.analyze_all_entries_rw_versions()
-                        img_archive._rw_analyzed = True
-            
-            # Emit signals for successfully opened archives
-            for file_path in file_paths:
-                if file_path not in failed_files:
-                    img_archive = self.archive_manager.get_archive(file_path)
-                    if img_archive:
-                        self.img_loaded.emit(img_archive)
-            
-            # Prepare result message
-            if success_count == len(file_paths):
-                return True, f"Successfully opened {success_count} archive(s)"
-            elif success_count > 0:
-                failed_names = [Path(f).name for f in failed_files]
-                return True, f"Opened {success_count}/{len(file_paths)} archives. Failed: {', '.join(failed_names)}"
-            else:
-                return False, f"Failed to open any archives: {'; '.join(error_messages)}"
+            return True, "Opening archives..."  # Return immediately, actual result comes via signal
                 
         except Exception as e:
             return False, f"Error opening archives: {str(e)}"
@@ -241,19 +641,23 @@ class IMGController(QObject):
     
     def extract_selected(self, output_dir):
         """Extracts selected entries to the specified directory."""
-        if not self.current_img:
+        active_archive = self.get_active_archive()
+        if not active_archive:
             return False, "No IMG file is currently open"
         
         if not self.selected_entries:
             return False, "No entries selected"
         
         try:
-            extracted_files = []
-            for entry in self.selected_entries:
-                output_path = Import_Export.export_entry(self.current_img, entry, output_dir=output_dir)
-                extracted_files.append(output_path)
+            # Start worker thread for extraction
+            operation_data = {
+                'archive': active_archive,
+                'selected_entries': self.selected_entries,
+                'output_dir': output_dir
+            }
+            self._start_worker_operation("extract_selected", operation_data)
             
-            return True, f"Extracted {len(extracted_files)} file(s) to {output_dir}"
+            return True, "Extracting files..."  # Return immediately, actual result comes via signal
         except Exception as e:
             return False, f"Error extracting files: {str(e)}"
     
@@ -267,25 +671,14 @@ class IMGController(QObject):
             return False, "No entries selected"
         
         try:
-            # Store count before deletion
-            selected_count = len(self.selected_entries)
-            entries_to_delete = self.selected_entries.copy()
+            # Start worker thread for deletion
+            operation_data = {
+                'archive': active_archive,
+                'selected_entries': self.selected_entries.copy()
+            }
+            self._start_worker_operation("delete_selected", operation_data)
             
-            # Use the batch delete method for better performance
-            success_count, failed_entries = active_archive.delete_entries(entries_to_delete)
-            
-            # Clear the selection since entries are deleted
-            self.selected_entries.clear()
-            
-            # Emit signal to update UI
-            self.entries_updated.emit(active_archive.entries)
-            
-            if success_count == selected_count:
-                return True, f"Successfully deleted {success_count} entries"
-            elif success_count > 0:
-                return True, f"Deleted {success_count} of {selected_count} entries. {len(failed_entries)} entries could not be deleted."
-            else:
-                return False, "No entries could be deleted"
+            return True, "Deleting entries..."  # Return immediately, actual result comes via signal
                 
         except Exception as e:
             return False, f"Error deleting entries: {str(e)}"
@@ -310,48 +703,18 @@ class IMGController(QObject):
             return False, "Invalid IDE file path", None
         
         try:
-            imported_entries, failed_files, parsed_info = Import_Export.import_via_ide(
-                active_archive, ide_file_path, models_directory
-            )
+            # Start worker thread for IDE import
+            operation_data = {
+                'archive': active_archive,
+                'ide_file_path': ide_file_path,
+                'models_directory': models_directory
+            }
+            self._start_worker_operation("import_via_ide", operation_data)
             
-            # Update UI
-            if imported_entries:
-                self.entries_updated.emit(active_archive.entries)
-                active_archive.modified = True
-                
-                success_count = len(imported_entries)
-                failed_count = len(failed_files)
-                
-                # Create detailed message
-                message_parts = [
-                    f"IDE Import completed:",
-                    f"• Successfully imported: {success_count} files",
-                    f"• Models found: {len(parsed_info['found_models'])}",
-                    f"• Textures found: {len(parsed_info['found_textures'])}",
-                ]
-                
-                if parsed_info['missing_models']:
-                    message_parts.append(f"• Missing models: {len(parsed_info['missing_models'])}")
-                if parsed_info['missing_textures']:
-                    message_parts.append(f"• Missing textures: {len(parsed_info['missing_textures'])}")
-                if failed_count > 0:
-                    message_parts.append(f"• Failed imports: {failed_count}")
-                
-                message = "\n".join(message_parts)
-                
-                self.operation_completed.emit(True, message)
-                return True, message, parsed_info
-            else:
-                message = "No files were imported from the IDE file"
-                if parsed_info:
-                    if parsed_info['missing_models'] or parsed_info['missing_textures']:
-                        message += f"\nMissing files: {len(parsed_info['missing_models'])} models, {len(parsed_info['missing_textures'])} textures"
-                
-                return False, message, parsed_info
+            return True, "Importing via IDE file...", None  # Return immediately, actual result comes via signal
                 
         except Exception as e:
             error_msg = f"Error importing from IDE file: {str(e)}"
-            self.operation_completed.emit(False, error_msg)
             return False, error_msg, None
 
     def get_ide_import_preview(self, ide_file_path, models_directory=None):
@@ -414,26 +777,15 @@ class IMGController(QObject):
             return False, "No files provided for import"
         
         try:
-            # Import files
-            imported_entries, failed_files = Import_Export.import_multiple_files(
-                active_archive, file_paths, entry_names
-            )
+            # Start worker thread for import
+            operation_data = {
+                'archive': active_archive,
+                'file_paths': file_paths,
+                'entry_names': entry_names
+            }
+            self._start_worker_operation("import_multiple_files", operation_data)
             
-            if imported_entries:
-                # Emit signal to update UI
-                self.entries_updated.emit(active_archive.entries)
-            
-            # Prepare result message
-            success_count = len(imported_entries)
-            failed_count = len(failed_files)
-            total_count = len(file_paths)
-            
-            if success_count == total_count:
-                return True, f"Successfully imported {success_count} file(s)"
-            elif success_count > 0:
-                return True, f"Imported {success_count} of {total_count} files. {failed_count} files failed."
-            else:
-                return False, f"Failed to import any files. {failed_count} files failed."
+            return True, "Importing files..."  # Return immediately, actual result comes via signal
                 
         except Exception as e:
             return False, f"Error importing files: {str(e)}"
@@ -455,26 +807,16 @@ class IMGController(QObject):
             return False, "No IMG file is currently open"
         
         try:
-            # Import folder
-            imported_entries, failed_files = Import_Export.import_folder(
-                active_archive, folder_path, recursive, filter_extensions
-            )
+            # Start worker thread for folder import
+            operation_data = {
+                'archive': active_archive,
+                'folder_path': folder_path,
+                'recursive': recursive,
+                'filter_extensions': filter_extensions
+            }
+            self._start_worker_operation("import_folder", operation_data)
             
-            if imported_entries:
-                # Emit signal to update UI
-                self.entries_updated.emit(active_archive.entries)
-            
-            # Prepare result message
-            success_count = len(imported_entries)
-            failed_count = len(failed_files)
-            
-            if success_count > 0:
-                message = f"Successfully imported {success_count} file(s) from folder"
-                if failed_count > 0:
-                    message += f". {failed_count} files failed."
-                return True, message
-            else:
-                return False, f"No files were imported. {failed_count} files failed or no matching files found."
+            return True, "Importing folder..."  # Return immediately, actual result comes via signal
                 
         except Exception as e:
             return False, f"Error importing folder: {str(e)}"

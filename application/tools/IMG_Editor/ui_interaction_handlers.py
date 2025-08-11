@@ -18,18 +18,12 @@ def _open_img_file(self):
     )
     
     if file_path:
+        # Start progress panel for opening archive
+        self.progress_panel.start_operation(f"Opening {file_path.split('/')[-1]}")
         success, message = self.open_archive(file_path)
-        if success:
-            message_box.info(message, "Success", self)
-        else:
-            message_box.error(message, "Error", self)
+        # Progress updates and completion are handled by signals
     else:
         return
-    
-    success, message = self.img_editor.open_img(file_path)
-    if not success:
-        # message_box is already imported at the top
-        message_box.error(message, "Error Opening IMG", self)
 
 
 
@@ -44,11 +38,10 @@ def _open_multiple_img_files(self):
         )
         
         if file_paths:
+            # Start progress panel for opening multiple archives
+            self.progress_panel.start_operation(f"Opening {len(file_paths)} archives")
             success, message = self.open_multiple_archives(file_paths)
-            if success:
-                message_box.info(message, "Success", self)
-            else:
-                message_box.error(message, "Error", self)
+            # Progress updates and completion are handled by signals
 
 
 
@@ -123,13 +116,12 @@ def _extract_selected(self):
     
     if not output_dir:
         return
+    
+    # Start progress panel for extraction
+    self.progress_panel.start_operation(f"Extracting {len(self.img_editor.selected_entries)} files")
         
     success, message = self.img_editor.extract_selected(output_dir)
-    
-    if not success:
-        message_box.error(message, "Error Extracting Files", self)
-    else:
-        message_box.info(message, "Files Extracted", self)
+    # Progress updates and completion are handled by signals
 
 def _delete_selected(self):
     """Delete selected entries from the current archive (in memory only)"""
@@ -162,12 +154,11 @@ def _delete_selected(self):
     )
     
     if reply == QMessageBox.StandardButton.Yes:
+        # Start progress panel for deletion
+        self.progress_panel.start_operation(f"Deleting {selected_count} entries")
+        
         success, message = self.img_editor.delete_selected()
-        if not success:
-            message_box.error(message, "Error Deleting Entries", self)
-        else:
-            message_box.info(f"{message}\n\nRemember to save or rebuild the archive to make changes permanent.", 
-                           "Entries Deleted", self)
+        # Progress updates and completion are handled by signals
             
 def _import_Via_IDE(self):
     """Import DFF models and TXD textures from an IDE file"""
@@ -276,13 +267,12 @@ def _proceed_with_ide_import(self, dialog, ide_file, models_dir):
     """Proceed with the IDE import after user confirmation"""
     dialog.accept()
     
+    # Start progress panel for IDE import
+    self.progress_panel.start_operation(f"Importing via IDE: {ide_file.split('/')[-1]}")
+    
     try:
         success, message, parsed_info = self.img_controller.import_via_ide(ide_file, models_dir)
-        
-        if success:
-            message_box.info(message, "IDE Import Successful", self)
-        else:
-            message_box.warning(message, "IDE Import Warning", self)
+        # Progress updates and completion are handled by signals
             
     except Exception as e:
         message_box.error(f"Error during IDE import: {str(e)}", "IDE Import Error", self)
@@ -300,12 +290,11 @@ def _import_multiple_files(self):
     if not file_paths:
         return
     
-    success, message = self.img_editor.import_multiple_files(file_paths)
+    # Start progress panel for import
+    self.progress_panel.start_operation(f"Importing {len(file_paths)} files")
     
-    if not success:
-        message_box.error(message, "Error Importing Files", self)
-    else:
-        message_box.info(message, "Files Imported", self)
+    success, message = self.img_editor.import_multiple_files(file_paths)
+    # Progress updates and completion are handled by signals
 
 def _import_folder(self):
     """Import folder contents into the current archive"""
@@ -370,12 +359,11 @@ def _import_folder(self):
         else:
             filter_extensions = None
         
-        success, message = self.img_editor.import_folder(folder_path, recursive, filter_extensions)
+        # Start progress panel for folder import
+        self.progress_panel.start_operation(f"Importing folder: {folder_path.split('/')[-1]}")
         
-        if not success:
-            message_box.error(message, "Error Importing Folder", self)
-        else:
-            message_box.info(message, "Folder Imported", self)
+        success, message = self.img_editor.import_folder(folder_path, recursive, filter_extensions)
+        # Progress updates and completion are handled by signals
 
 def _get_import_preview(self):
     """Show import preview for selected files"""

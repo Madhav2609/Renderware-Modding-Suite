@@ -16,6 +16,7 @@ from application.common.message_box import message_box
 from application.responsive_utils import get_responsive_manager
 from application.styles import ModernDarkTheme
 from .img_controller import IMGController
+from .progress_dialog import IMGProgressPanel
 
 
 class IMGFileInfoPanel(QGroupBox):
@@ -544,6 +545,10 @@ class ImgEditorTool(QWidget):
         self.img_controller.archive_switched.connect(self._on_archive_switched)
         self.img_controller.entries_updated.connect(self._on_entries_updated_for_tabs)
         
+        # Connect progress signals
+        self.img_controller.operation_progress.connect(self._on_operation_progress)
+        self.img_controller.operation_completed.connect(self._on_operation_completed)
+        
         self.setup_ui()
     
     def _create_img_editor_adapter(self):
@@ -747,6 +752,11 @@ class ImgEditorTool(QWidget):
         header_label.setStyleSheet(f"font-weight: bold; font-size: {fonts['header']['size']}px; padding: {spacing['medium']}px;")
         main_layout.addWidget(header_label)
         
+        # Progress panel for operations
+        self.progress_panel = IMGProgressPanel()
+        self.progress_panel.cancelled.connect(self._on_progress_cancelled)
+        main_layout.addWidget(self.progress_panel)
+        
         # Main splitter for IMG content
         splitter = QSplitter(Qt.Orientation.Horizontal)
         
@@ -767,8 +777,6 @@ class ImgEditorTool(QWidget):
         
         main_layout.addWidget(splitter, 1)
         
-        # Status info
-        self.create_status_info(main_layout)
         
         self.setLayout(main_layout)
         self.setMinimumHeight(rm.get_scaled_size(400))
@@ -889,35 +897,7 @@ class ImgEditorTool(QWidget):
             self.archive_tabs.clear()
             self.archive_tabs.setTabsClosable(True)
     
-    def create_status_info(self, parent_layout):
-        """Create status information at bottom"""
-        self.status_label = QLabel("Ready | No archives open")
-        self.status_label.setStyleSheet(f"""
-            QLabel {{
-                background-color: {ModernDarkTheme.BACKGROUND_TERTIARY};
-                color: {ModernDarkTheme.TEXT_PRIMARY};
-                padding: 5px 10px;
-                border-top: 1px solid {ModernDarkTheme.BORDER_PRIMARY};
-                font-size: 11px;
-            }}
-        """)
-        parent_layout.addWidget(self.status_label)
     
-    def update_status(self):
-        """Update status information"""
-        archive_count = self.img_controller.get_archive_count()
-        if archive_count == 0:
-            self.status_label.setText("Ready | No archives open")
-        else:
-            active_archive = self.img_controller.get_active_archive()
-            if active_archive:
-                file_path = self.img_controller.get_archive_file_path(active_archive)
-                archive_name = Path(file_path).name if file_path else "Unknown"
-                entries = self.img_controller.get_archive_entries()
-                entry_count = len(entries)
-                self.status_label.setText(f"Active: {archive_name} | {entry_count} entries | {archive_count} archive(s) open")
-            else:
-                self.status_label.setText(f"Ready | {archive_count} archive(s) open")
     
     def add_archive_tab(self, img_archive):
         """Add a new archive tab"""
@@ -948,7 +928,6 @@ class ImgEditorTool(QWidget):
         self.img_controller.switch_active_archive(file_path)
         
         # Update status and info panel
-        self.update_status()
         self.update_info_panel()
         
         return archive_tab
@@ -992,7 +971,6 @@ class ImgEditorTool(QWidget):
                 self.show_empty_state()
             
             # Update status
-            self.update_status()
             self.update_info_panel()
     
     def _on_tab_changed(self, index):
@@ -1004,7 +982,6 @@ class ImgEditorTool(QWidget):
             file_path = self.img_controller.get_archive_file_path(widget.img_archive)
             if file_path:
                 self.img_controller.switch_active_archive(file_path)
-            self.update_status()
             self.update_info_panel()
     
     def _on_img_loaded(self, img_archive):
@@ -1030,7 +1007,6 @@ class ImgEditorTool(QWidget):
             if self.archive_tabs.count() == 0:
                 self.show_empty_state()
         
-        self.update_status()
         self.update_info_panel()
     
     def _on_archive_switched(self, img_archive):
@@ -1039,7 +1015,6 @@ class ImgEditorTool(QWidget):
             file_path = self.img_controller.get_archive_file_path(img_archive)
             if file_path:
                 self.switch_to_archive(file_path)
-        self.update_status()
         self.update_info_panel()
         self.archive_switched.emit(img_archive)
     
@@ -1048,14 +1023,12 @@ class ImgEditorTool(QWidget):
         if self.current_archive_tab:
             self.current_archive_tab.entries_table.populate_entries(entries or [])
             self.update_info_panel()
-            self.update_status()
 
     def _on_entries_selected(self, entries):
         """Handle entry selection in current tab by updating controller selection"""
         # Keep controller in sync with UI-selected entries
         self.img_controller.set_selected_entries(entries or [])
         # Optional: update status/info
-        self.update_status()
 
     
     def _on_archive_modified(self, file_path):
@@ -1408,4 +1381,24 @@ class ImgEditorTool(QWidget):
         else:
             # For other tools not yet implemented
             message_box.info(f"The '{tool_name}' feature is not implemented yet.", "Feature Not Implemented", self)
+    
+    # Progress signal handlers
+    def _on_operation_progress(self, percentage, message):
+        """Handle operation progress updates."""
+        self.progress_panel.update_progress(percentage, message)
+    
+    def _on_operation_completed(self, success, message):
+        """Handle operation completion."""
+        self.progress_panel.complete_operation(success, message)
+        
+        # Show completion message
+        if success:
+            message_box.info(message, "Operation Completed", self)
+        else:
+            message_box.error(message, "Operation Failed", self)
+    
+    def _on_progress_cancelled(self):
+        """Handle progress panel cancel button click."""
+        if self.img_controller.is_operation_running():
+            self.img_controller.cancel_current_operation()
     
