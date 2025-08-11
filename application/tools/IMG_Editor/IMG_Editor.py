@@ -608,6 +608,22 @@ class ImgEditorTool(QWidget):
                 # Get the read/write version summary for the current archive through controller
                 return self.tool.img_controller.get_rw_version_summary()
             
+            # Export methods
+            def export_selected(self, output_dir):
+                return self.tool.img_controller.export_selected(output_dir)
+            
+            def export_all(self, output_dir, filter_type=None):
+                return self.tool.img_controller.export_all(output_dir, filter_type)
+            
+            def export_by_type(self, output_dir, types):
+                return self.tool.img_controller.export_by_type(output_dir, types)
+            
+            def get_export_preview(self, entries=None, filter_type=None):
+                return self.tool.img_controller.get_export_preview(entries, filter_type)
+            
+            def get_active_archive(self):
+                return self.tool.img_controller.get_active_archive()
+            
             @property
             def selected_entries(self):
                 return self.tool.get_selected_entries()
@@ -636,6 +652,10 @@ class ImgEditorTool(QWidget):
                 _on_img_loaded,
                 _on_img_closed,
                 _on_entries_updated,
+                _export_selected,
+                _export_all,
+                _export_by_type,
+                _get_export_preview,
             )
             
             # Bind imported functions as methods of this class
@@ -656,6 +676,10 @@ class ImgEditorTool(QWidget):
             self._on_img_loaded_handler = _on_img_loaded.__get__(self, self.__class__)
             self._on_img_closed_handler = _on_img_closed.__get__(self, self.__class__)
             self._on_entries_updated_handler = _on_entries_updated.__get__(self, self.__class__)
+            self._export_selected = _export_selected.__get__(self, self.__class__)
+            self._export_all = _export_all.__get__(self, self.__class__)
+            self._export_by_type = _export_by_type.__get__(self, self.__class__)
+            self._get_export_preview = _get_export_preview.__get__(self, self.__class__)
             
         except ImportError:
             # If ui_interaction_handlers doesn't exist, use fallback methods
@@ -1107,8 +1131,6 @@ class ImgEditorTool(QWidget):
 
         extract_btn = QPushButton("📤 Extract")
         extract_btn.clicked.connect(lambda: self.handle_img_tool("Extract Selected"))
-        replace_btn = QPushButton("🔄 Replace")
-        replace_btn.clicked.connect(lambda: self.handle_img_tool("Replace Selected"))
         delete_btn = QPushButton("🗑️ Delete")
         delete_btn.clicked.connect(lambda: self.handle_img_tool("Delete Selected"))
         rebuild_btn = QPushButton("🔄 Rebuild")
@@ -1120,11 +1142,10 @@ class ImgEditorTool(QWidget):
 
         # Add buttons to grid layout
         actions_layout.addWidget(extract_btn, 0, 0)
-        actions_layout.addWidget(replace_btn, 0, 1)
-        actions_layout.addWidget(delete_btn, 0, 2)
+        actions_layout.addWidget(delete_btn, 0, 1)
         actions_layout.addWidget(rebuild_btn, 1, 0)
         actions_layout.addWidget(import_btn, 1, 1)
-        actions_layout.addWidget(select_all_btn, 1, 2)
+        actions_layout.addWidget(select_all_btn, 1, 1)
 
         actions_group.setLayout(actions_layout)
         right_layout.addWidget(actions_group)
@@ -1378,6 +1399,13 @@ class ImgEditorTool(QWidget):
             self._get_import_preview()
         elif tool_name == "Show Modification Status":
             self._show_modification_status()
+        # Export actions
+        elif tool_name == "Export All":
+            self._export_all()
+        elif tool_name == "Export Selected":
+            self._export_selected()
+        elif tool_name == "Export by Type":
+            self._export_by_type()
         else:
             # For other tools not yet implemented
             message_box.info(f"The '{tool_name}' feature is not implemented yet.", "Feature Not Implemented", self)

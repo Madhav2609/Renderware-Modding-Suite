@@ -452,6 +452,181 @@ def _proceed_with_import(self, dialog, file_paths):
     else:
         message_box.info(message, "Files Imported", self)
 
+# Export UI Interaction Handlers
+
+def _export_selected(self):
+    """Export selected entries to a directory"""
+    if not self.img_editor.is_img_open():
+        message_box.warning("No IMG file is currently open.", "No IMG Open", self)
+        return
+    
+    selected_entries = self.get_selected_entries()
+    if not selected_entries:
+        message_box.warning("No entries are selected for export.", "No Selection", self)
+        return
+    
+    # Get export directory
+    export_dir = QFileDialog.getExistingDirectory(
+        self, 
+        "Select Export Directory", 
+        "",
+        QFileDialog.Option.ShowDirsOnly
+    )
+    
+    if export_dir:
+        # Start progress panel for export
+        self.progress_panel.start_operation(f"Exporting {len(selected_entries)} entries")
+        success, message = self.img_editor.export_selected(export_dir)
+        # Progress updates and completion are handled by signals
+
+def _export_all(self):
+    """Export all entries to a directory"""
+    if not self.img_editor.is_img_open():
+        message_box.warning("No IMG file is currently open.", "No IMG Open", self)
+        return
+    
+    # Get export directory
+    export_dir = QFileDialog.getExistingDirectory(
+        self, 
+        "Select Export Directory", 
+        "",
+        QFileDialog.Option.ShowDirsOnly
+    )
+    
+    if export_dir:
+        # Start progress panel for export
+        self.progress_panel.start_operation("Exporting all entries")
+        success, message = self.img_editor.export_all(export_dir)
+        # Progress updates and completion are handled by signals
+
+def _export_by_type(self):
+    """Export entries by type to a directory"""
+    if not self.img_editor.is_img_open():
+        message_box.warning("No IMG file is currently open.", "No IMG Open", self)
+        return
+    
+    # Get available types from current archive
+    archive = self.img_editor.get_active_archive()
+    if not archive:
+        message_box.warning("No active archive available.", "No Archive", self)
+        return
+    
+    # Get unique types from entries
+    types = list(set(entry.type for entry in archive.entries))
+    types.sort()
+    
+    if not types:
+        message_box.warning("No entries found in archive.", "No Entries", self)
+        return
+    
+    # Create type selection dialog
+    dialog = QDialog(self)
+    dialog.setWindowTitle("Select Types to Export")
+    dialog.setMinimumSize(300, 200)
+    
+    layout = QVBoxLayout()
+    
+    # Instructions
+    instruction_label = QLabel("Select the file types you want to export:")
+    layout.addWidget(instruction_label)
+    
+    # Type checkboxes
+    type_checkboxes = {}
+    for file_type in types:
+        checkbox = QCheckBox(f"{file_type} ({len([e for e in archive.entries if e.type == file_type])} files)")
+        checkbox.setChecked(True)  # Default to all selected
+        type_checkboxes[file_type] = checkbox
+        layout.addWidget(checkbox)
+    
+    # Buttons
+    button_layout = QHBoxLayout()
+    
+    select_all_btn = QPushButton("Select All")
+    select_all_btn.clicked.connect(lambda: [cb.setChecked(True) for cb in type_checkboxes.values()])
+    
+    deselect_all_btn = QPushButton("Deselect All")
+    deselect_all_btn.clicked.connect(lambda: [cb.setChecked(False) for cb in type_checkboxes.values()])
+    
+    export_btn = QPushButton("Export")
+    export_btn.clicked.connect(dialog.accept)
+    
+    cancel_btn = QPushButton("Cancel")
+    cancel_btn.clicked.connect(dialog.reject)
+    
+    button_layout.addWidget(select_all_btn)
+    button_layout.addWidget(deselect_all_btn)
+    button_layout.addStretch()
+    button_layout.addWidget(export_btn)
+    button_layout.addWidget(cancel_btn)
+    
+    layout.addLayout(button_layout)
+    dialog.setLayout(layout)
+    
+    if dialog.exec() == QDialog.DialogCode.Accepted:
+        # Get selected types
+        selected_types = [t for t, cb in type_checkboxes.items() if cb.isChecked()]
+        
+        if not selected_types:
+            message_box.warning("No types selected for export.", "No Types Selected", self)
+            return
+        
+        # Get export directory
+        export_dir = QFileDialog.getExistingDirectory(
+            self, 
+            "Select Export Directory", 
+            "",
+            QFileDialog.Option.ShowDirsOnly
+        )
+        
+        if export_dir:
+            # Start progress panel for export
+            self.progress_panel.start_operation(f"Exporting {', '.join(selected_types)} files")
+            success, message = self.img_editor.export_by_type(export_dir, selected_types)
+            # Progress updates and completion are handled by signals
+
+def _get_export_preview(self):
+    """Get a preview of what would be exported"""
+    if not self.img_editor.is_img_open():
+        message_box.warning("No IMG file is currently open.", "No IMG Open", self)
+        return
+    
+    # Get preview data
+    preview = self.img_editor.get_export_preview()
+    if not preview:
+        message_box.warning("Could not generate export preview.", "Preview Error", self)
+        return
+    
+    # Create preview dialog
+    dialog = QDialog(self)
+    dialog.setWindowTitle("Export Preview")
+    dialog.setMinimumSize(500, 400)
+    
+    layout = QVBoxLayout()
+    
+    # Summary
+    summary_text = f"Total Entries: {preview['total_entries']}\n"
+    summary_text += f"Total Size: {preview['total_size_bytes'] / (1024*1024):.2f} MB\n\n"
+    
+    summary_label = QLabel(summary_text)
+    layout.addWidget(summary_label)
+    
+    # Type breakdown
+    type_text = "Breakdown by Type:\n"
+    for file_type, entries in preview['by_type'].items():
+        type_size = sum(e['size'] for e in entries)
+        type_text += f"• {file_type}: {len(entries)} files ({type_size / (1024*1024):.2f} MB)\n"
+    
+    type_label = QLabel(type_text)
+    layout.addWidget(type_label)
+    
+    # Close button
+    close_btn = QPushButton("Close")
+    close_btn.clicked.connect(dialog.accept)
+    layout.addWidget(close_btn)
+    
+    dialog.setLayout(layout)
+    dialog.exec()
+
 def _show_modification_status(self):
     """Show detailed modification status"""
     if not self.img_editor.is_img_open():

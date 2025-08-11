@@ -53,6 +53,12 @@ class IMGWorkerThread(QThread):
                 self._extract_selected_operation()
             elif self.operation_type == "delete_selected":
                 self._delete_selected_operation()
+            elif self.operation_type == "export_selected":
+                self._export_selected_operation()
+            elif self.operation_type == "export_all":
+                self._export_all_operation()
+            elif self.operation_type == "export_by_type":
+                self._export_by_type_operation()
             else:
                 self.operation_completed.emit(False, f"Unknown operation type: {self.operation_type}", None)
                 
@@ -378,6 +384,129 @@ class IMGWorkerThread(QThread):
             message = "No entries could be deleted"
         
         self.operation_completed.emit(success_count > 0, message, result_data)
+    
+    def _export_selected_operation(self):
+        """Export selected entries from the active archive."""
+        output_dir = self.operation_data['output_dir']
+        selected_entries = self.operation_data['selected_entries']
+        img_archive = self.operation_data['img_archive']
+        
+        total_entries = len(selected_entries)
+        if total_entries == 0:
+            self.operation_completed.emit(False, "No entries selected for export", None)
+            return
+        
+        self.progress_updated.emit(0, f"Starting export of {total_entries} entries")
+        
+        exported_files = []
+        failed_entries = []
+        
+        for i, entry in enumerate(selected_entries):
+            if self._check_cancelled():
+                return
+            
+            progress = int((i / total_entries) * 90)
+            self.progress_updated.emit(progress, f"Exporting {entry.name} ({i+1}/{total_entries})")
+            
+            try:
+                exported_path = Import_Export.export_entry(img_archive, entry, output_dir=output_dir)
+                exported_files.append(exported_path)
+            except Exception as e:
+                failed_entries.append(entry)
+                print(f"Failed to export {entry.name}: {str(e)}")
+        
+        if self._check_cancelled():
+            return
+        
+        self.progress_updated.emit(100, "Export completed")
+        
+        result_data = {
+            'exported_files': exported_files,
+            'failed_entries': failed_entries
+        }
+        
+        if failed_entries:
+            message = f"Exported {len(exported_files)} files, failed to export {len(failed_entries)} entries"
+        else:
+            message = f"Successfully exported {len(exported_files)} files to {output_dir}"
+        
+        self.operation_completed.emit(len(failed_entries) == 0, message, result_data)
+    
+    def _export_all_operation(self):
+        """Export all entries from the active archive."""
+        output_dir = self.operation_data['output_dir']
+        filter_type = self.operation_data.get('filter_type')
+        img_archive = self.operation_data['img_archive']
+        
+        total_entries = len(img_archive.entries)
+        if total_entries == 0:
+            self.operation_completed.emit(False, "No entries to export", None)
+            return
+        
+        self.progress_updated.emit(0, f"Starting export of all entries ({total_entries} total)")
+        
+        try:
+            exported_files, failed_entries = Import_Export.export_all(img_archive, output_dir, filter_type)
+            
+            if self._check_cancelled():
+                return
+            
+            self.progress_updated.emit(100, "Export completed")
+            
+            result_data = {
+                'exported_files': exported_files,
+                'failed_entries': failed_entries
+            }
+            
+            if failed_entries:
+                message = f"Exported {len(exported_files)} files, failed to export {len(failed_entries)} entries"
+            else:
+                message = f"Successfully exported {len(exported_files)} files to {output_dir}"
+            
+            self.operation_completed.emit(len(failed_entries) == 0, message, result_data)
+            
+        except Exception as e:
+            self.operation_completed.emit(False, f"Export failed: {str(e)}", None)
+    
+    def _export_by_type_operation(self):
+        """Export entries of specific types from the active archive."""
+        output_dir = self.operation_data['output_dir']
+        types = self.operation_data['types']
+        img_archive = self.operation_data['img_archive']
+        
+        total_entries = len(img_archive.entries)
+        if total_entries == 0:
+            self.operation_completed.emit(False, "No entries to export", None)
+            return
+        
+        self.progress_updated.emit(0, f"Starting export by type: {', '.join(types)}")
+        
+        try:
+            results = Import_Export.export_by_type(img_archive, output_dir, types)
+            
+            if self._check_cancelled():
+                return
+            
+            self.progress_updated.emit(100, "Export by type completed")
+            
+            total_exported = sum(len(files) for files, _ in results.values())
+            total_failed = sum(len(failed) for _, failed in results.values())
+            
+            result_data = {
+                'results': results,
+                'total_exported': total_exported,
+                'total_failed': total_failed
+            }
+            
+            if total_failed > 0:
+                message = f"Exported {total_exported} files by type, failed to export {total_failed} entries"
+            else:
+                message = f"Successfully exported {total_exported} files by type to {output_dir}"
+            
+            self.operation_completed.emit(total_failed == 0, message, result_data)
+            
+        except Exception as e:
+            self.operation_completed.emit(False, f"Export by type failed: {str(e)}", None)
 
 
 class IMGController(QObject):
@@ -840,6 +969,105 @@ class IMGController(QObject):
             return True, preview
         except Exception as e:
             return False, f"Error generating import preview: {str(e)}"
+    
+    # Export Methods
+    
+    def export_entry(self, entry, output_path=None, output_dir=None):
+        """Export a single entry from the active archive."""
+        active_archive = self.get_active_archive()
+        if not active_archive:
+            return False, "No active archive"
+        
+        try:
+            exported_path = Import_Export.export_entry(active_archive, entry, output_path, output_dir)
+            return True, f"Exported {entry.name} to {exported_path}"
+        except Exception as e:
+            return False, f"Failed to export {entry.name}: {str(e)}"
+    
+    def export_selected(self, output_dir):
+        """Export all selected entries to the specified directory."""
+        if not self.selected_entries:
+            return False, "No entries selected"
+        
+        active_archive = self.get_active_archive()
+        if not active_archive:
+            return False, "No active archive"
+        
+        # Start worker thread for export operation
+        operation_data = {
+            'output_dir': output_dir,
+            'selected_entries': self.selected_entries,
+            'img_archive': active_archive
+        }
+        self._start_worker_operation("export_selected", operation_data)
+        return True, "Export operation started"
+    
+    def export_all(self, output_dir, filter_type=None):
+        """Export all entries from the active archive."""
+        active_archive = self.get_active_archive()
+        if not active_archive:
+            return False, "No active archive"
+        
+        # Start worker thread for export operation
+        operation_data = {
+            'output_dir': output_dir,
+            'filter_type': filter_type,
+            'img_archive': active_archive
+        }
+        self._start_worker_operation("export_all", operation_data)
+        return True, "Export operation started"
+    
+    def export_by_type(self, output_dir, types):
+        """Export entries of specific types from the active archive."""
+        active_archive = self.get_active_archive()
+        if not active_archive:
+            return False, "No active archive"
+        
+        # Start worker thread for export operation
+        operation_data = {
+            'output_dir': output_dir,
+            'types': types,
+            'img_archive': active_archive
+        }
+        self._start_worker_operation("export_by_type", operation_data)
+        return True, "Export operation started"
+    
+    def get_export_preview(self, entries=None, filter_type=None):
+        """Get a preview of what would be exported."""
+        active_archive = self.get_active_archive()
+        if not active_archive:
+            return None
+        
+        if entries is None:
+            entries = active_archive.entries
+        
+        preview = {
+            'total_entries': len(entries),
+            'entries': [],
+            'total_size_bytes': 0,
+            'by_type': {}
+        }
+        
+        for entry in entries:
+            # Apply type filter if provided
+            if filter_type and entry.type != filter_type:
+                continue
+            
+            entry_info = {
+                'name': entry.name,
+                'type': entry.type,
+                'size': entry.actual_size,
+                'offset': entry.actual_offset
+            }
+            preview['entries'].append(entry_info)
+            preview['total_size_bytes'] += entry.actual_size
+            
+            # Group by type
+            if entry.type not in preview['by_type']:
+                preview['by_type'][entry.type] = []
+            preview['by_type'][entry.type].append(entry_info)
+        
+        return preview
     
     # Deleted Entry Management
     
