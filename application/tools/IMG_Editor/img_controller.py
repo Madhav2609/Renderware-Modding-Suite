@@ -634,9 +634,15 @@ class IMGController(QObject):
     
     # Helper Methods
     
-    def get_img_info(self):
-        """Gets information about the current IMG archive."""
-        if not self.current_img:
+    def get_img_info(self, file_path=None):
+        """Gets information about the specified or current IMG archive."""
+        archive = None
+        if file_path:
+            archive = self.archive_manager.get_archive(file_path)
+        else:
+            archive = self.get_active_archive()
+            
+        if not archive:
             return {
                 "path": "Not loaded",
                 "version": "-",
@@ -646,13 +652,59 @@ class IMGController(QObject):
             }
         
         return {
-            "path": self.current_img.file_path,
-            "version": self.current_img.get_version_string(),
-            "entry_count": self.current_img.get_file_count(),
-            "total_size": f"{self.current_img.get_total_size():,} bytes",
-            "modified": "Yes" if self.current_img.modified else "No"
+            "path": archive.file_path or "Unknown",
+            "version": getattr(archive, 'version', 'Unknown'),
+            "entry_count": len(archive.entries) if hasattr(archive, 'entries') else 0,
+            "total_size": f"{sum(entry.actual_size for entry in archive.entries) if hasattr(archive, 'entries') and archive.entries else 0:,} bytes",
+            "modified": "Yes" if getattr(archive, 'modified', False) else "No"
         }
+    
+    def get_archive_info_by_path(self, file_path):
+        """Get archive information for a specific file path."""
+        return self.get_img_info(file_path)
+    
+    def get_rw_version_summary(self, file_path=None):
+        """Get RenderWare version summary for the specified or current archive."""
+        archive = None
+        if file_path:
+            archive = self.archive_manager.get_archive(file_path)
+        else:
+            archive = self.get_active_archive()
+            
+        if not archive:
+            return None
+            
+        if hasattr(archive, 'get_rw_version_summary'):
+            return archive.get_rw_version_summary()
+        return None
     
     def is_img_open(self):
         """Checks if an IMG file is currently open."""
         return self.current_img is not None
+    
+    def get_archive_file_path(self, archive=None):
+        """Get the file path of the specified or current archive."""
+        if archive is None:
+            archive = self.get_active_archive()
+        return getattr(archive, 'file_path', None) if archive else None
+    
+    def get_archive_entries(self, file_path=None):
+        """Get entries for the specified or current archive."""
+        archive = None
+        if file_path:
+            archive = self.archive_manager.get_archive(file_path)
+        else:
+            archive = self.get_active_archive()
+            
+        if not archive:
+            return []
+            
+        return getattr(archive, 'entries', [])
+    
+    def get_archive_by_path(self, file_path):
+        """Get archive object by file path."""
+        return self.archive_manager.get_archive(file_path)
+    
+    def has_archive_path(self, file_path):
+        """Check if an archive with the given path exists."""
+        return file_path in self.archive_manager.open_archives if file_path else False

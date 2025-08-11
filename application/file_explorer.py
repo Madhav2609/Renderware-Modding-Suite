@@ -114,7 +114,9 @@ class FileExplorer(QWidget):
             if item and item.text() == "🔄 No recent files":
                 self.recent_files_list.takeItem(0)
         
-        # Add new file (limit to 10 recent files)
+    # Add new file (limit to scaled recent files)
+        from application.responsive_utils import get_responsive_manager
+        rm = get_responsive_manager()
         file_name = os.path.basename(file_path)
         file_ext = os.path.splitext(file_name)[1].upper()
         
@@ -133,8 +135,9 @@ class FileExplorer(QWidget):
         item.setData(Qt.ItemDataRole.UserRole, file_path)
         self.recent_files_list.insertItem(0, item)
         
-        # Limit to 10 items
-        while self.recent_files_list.count() > 10:
+        # Limit to scaled number of items
+        max_items = max(5, rm.get_scaled_size(10))
+        while self.recent_files_list.count() > max_items:
             self.recent_files_list.takeItem(self.recent_files_list.count() - 1)
     
     def on_recent_file_selected(self, item):

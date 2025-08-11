@@ -352,8 +352,10 @@ class FilterPanel(QWidget):
     
     def _setup_ui(self):
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(8, 8, 8, 8)
-        layout.setSpacing(15)
+        rm = get_responsive_manager()
+        spacing = rm.get_spacing_config()
+        layout.setContentsMargins(spacing['medium'], spacing['medium'], spacing['medium'], spacing['medium'])
+        layout.setSpacing(spacing['large'])
 
         # File type filter
         type_group = QGroupBox("File Type Filter")
@@ -452,10 +454,80 @@ class IMGArchiveTab(QWidget):
         self.setup_ui()
         self.update_display()
     
-    def setup_ui(self):
-        """Setup UI for individual archive tab"""
-        layout = QVBoxLayout(self)
-        
+    def _setup_ui(self):
+        rm = get_responsive_manager()
+        fonts = rm.get_font_config()
+        spacing = rm.get_spacing_config()
+        button_size = rm.get_button_size()
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(spacing['medium'], spacing['medium'], spacing['medium'], spacing['medium'])
+        layout.setSpacing(spacing['large'])
+
+        # File type filter
+        type_group = QGroupBox("File Type Filter")
+        type_layout = QHBoxLayout(type_group)
+        self.type_combo = QComboBox()
+        self.type_combo.addItems(['All', 'DFF', 'TXD', 'COL', 'IFP', 'IPL', 'DAT', 'WAV'])
+        self.type_combo.currentTextChanged.connect(self._filter_changed)
+        type_layout.addWidget(self.type_combo)
+
+        # RenderWare version filter
+        rw_group = QGroupBox("RenderWare Version Filter")
+        rw_layout = QHBoxLayout(rw_group)
+        self.rw_version_combo = QComboBox()
+        self.rw_version_combo.addItems(['All Versions', 'RenderWare Only', 'Non-RenderWare', 'GTA III (3.1.0.1)', 'Vice City (3.3.0.2)', 'San Andreas (3.6.0.3)', 'San Andreas (3.4.0.3)', 'Liberty City Stories (3.5.0.0)', 'Vice City Stories (3.5.0.2)', 'COL1 (GTA III/VC)', 'COL2 (GTA SA)', 'COL3 (GTA SA Advanced)', 'COL4 (Extended)'])
+        self.rw_version_combo.currentTextChanged.connect(self._filter_changed)
+        rw_layout.addWidget(self.rw_version_combo)
+
+        # Search filter
+        search_group = QGroupBox("Search")
+        search_layout = QHBoxLayout(search_group)
+        self.search_edit = QLineEdit()
+        self.search_edit.setPlaceholderText("🔍 Search entries...")
+        self.search_edit.textChanged.connect(self._filter_changed)
+        search_layout.addWidget(self.search_edit)
+
+        combo_style = f"""
+            QComboBox {{
+                background-color: {ModernDarkTheme.BACKGROUND_TERTIARY};
+                color: white;
+                border: 1px solid {ModernDarkTheme.BORDER_PRIMARY};
+                border-radius: 3px;
+                padding: {spacing['small']}px;
+                min-width: {rm.get_scaled_size(button_size[0] - 20)}px;
+                font-size: {fonts['body']['size']}px;
+            }}
+            QComboBox:hover {{
+                border: 1px solid {ModernDarkTheme.TEXT_ACCENT};
+            }}
+            QComboBox::drop-down {{
+                subcontrol-origin: padding;
+                subcontrol-position: top right;
+                width: {rm.get_scaled_size(spacing['medium'] + 5)}px;
+                border-left: 1px solid {ModernDarkTheme.BORDER_PRIMARY};
+            }}
+        """
+        self.type_combo.setStyleSheet(combo_style)
+        self.rw_version_combo.setStyleSheet(combo_style)
+
+        self.search_edit.setStyleSheet(f"""
+            QLineEdit {{
+                background-color: {ModernDarkTheme.BACKGROUND_TERTIARY};
+                color: white;
+                border: 1px solid {ModernDarkTheme.BORDER_PRIMARY};
+                border-radius: 3px;
+                padding: {spacing['small']}px;
+                font-size: {fonts['body']['size']}px;
+            }}
+            QLineEdit:focus {{
+                border: 1px solid {ModernDarkTheme.TEXT_ACCENT};
+            }}
+        """)
+
+        layout.addWidget(type_group)
+        layout.addWidget(rw_group)
+        layout.addWidget(search_group)
         # Filter panel
         self.filter_panel = FilterPanel()
         self.filter_panel.filter_changed.connect(self._on_filter_changed)
@@ -470,27 +542,25 @@ class IMGArchiveTab(QWidget):
     
     def update_display(self):
         """Update the display with current archive data"""
-        if not self.img_archive:
+        if not self.img_archive or not self.parent_tool:
             return
         
+        # Get entries through controller instead of direct access
+        file_path = self.parent_tool.img_controller.get_archive_file_path(self.img_archive)
+        entries = self.parent_tool.img_controller.get_archive_entries(file_path)
+        
         # Populate table with entries
-        if hasattr(self.img_archive, 'entries') and self.img_archive.entries:
-            self.entries_table.populate_entries(self.img_archive.entries)
+        if entries:
+            self.entries_table.populate_entries(entries)
     
     def get_archive_info(self):
         """Get archive information for display"""
-        if not self.img_archive:
+        if not self.img_archive or not self.parent_tool:
             return None
         
-        total_size = sum(entry.actual_size for entry in self.img_archive.entries) if hasattr(self.img_archive, 'entries') else 0
-        
-        return {
-            'path': self.img_archive.file_path or 'Unknown',
-            'version': getattr(self.img_archive, 'version', 'Unknown'),
-            'entry_count': len(self.img_archive.entries) if hasattr(self.img_archive, 'entries') else 0,
-            'total_size': f"{total_size:,} bytes",
-            'modified': "Yes" if getattr(self.img_archive, 'modified', False) else "No"
-        }
+        # Get information through controller instead of direct access
+        file_path = self.parent_tool.img_controller.get_archive_file_path(self.img_archive)
+        return self.parent_tool.img_controller.get_archive_info_by_path(file_path)
     
     def get_selected_entries(self):
         """Get currently selected entries"""
@@ -600,17 +670,12 @@ class ImgEditorTool(QWidget):
                 return self.tool.img_controller.restore_all_deleted_entries()
             
             def get_img_info(self):
-                archive = self.tool.get_current_archive()
-                if archive and self.tool.current_archive_tab:
-                    return self.tool.current_archive_tab.get_archive_info()
-                return None
+                # Delegate to controller instead of direct archive access
+                return self.tool.img_controller.get_img_info()
             
             def get_rw_version_summary(self):
-                # Get the read/write version summary for the current archive
-                archive = self.tool.get_current_archive()
-                if archive:
-                    return archive.get_rw_version_summary()
-                return None
+                # Get the read/write version summary for the current archive through controller
+                return self.tool.img_controller.get_rw_version_summary()
             
             @property
             def selected_entries(self):
@@ -770,7 +835,7 @@ class ImgEditorTool(QWidget):
         splitter.addWidget(right_panel)
         
         # Set initial sizes
-        splitter.setSizes([500, 450])
+        splitter.setSizes([rm.get_scaled_size(500), rm.get_scaled_size(450)])
         splitter.setStretchFactor(0, 1)
         splitter.setStretchFactor(1, 0)
         
@@ -780,7 +845,7 @@ class ImgEditorTool(QWidget):
         self.create_status_info(main_layout)
         
         self.setLayout(main_layout)
-        self.setMinimumHeight(400)
+        self.setMinimumHeight(rm.get_scaled_size(400))
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
     
     def create_left_panel(self):
@@ -920,15 +985,18 @@ class ImgEditorTool(QWidget):
         else:
             active_archive = self.img_controller.get_active_archive()
             if active_archive:
-                archive_name = Path(active_archive.file_path).name if active_archive.file_path else "Unknown"
-                entry_count = len(active_archive.entries) if hasattr(active_archive, 'entries') else 0
+                file_path = self.img_controller.get_archive_file_path(active_archive)
+                archive_name = Path(file_path).name if file_path else "Unknown"
+                entries = self.img_controller.get_archive_entries()
+                entry_count = len(entries)
                 self.status_label.setText(f"Active: {archive_name} | {entry_count} entries | {archive_count} archive(s) open")
             else:
                 self.status_label.setText(f"Ready | {archive_count} archive(s) open")
     
     def add_archive_tab(self, img_archive):
         """Add a new archive tab"""
-        if not img_archive or not img_archive.file_path:
+        file_path = self.img_controller.get_archive_file_path(img_archive)
+        if not img_archive or not file_path:
             return
         
         # Hide empty state if it's showing
@@ -941,7 +1009,7 @@ class ImgEditorTool(QWidget):
         archive_tab.action_requested.connect(self._on_tab_action_requested)
         
         # Get tab title
-        tab_title = Path(img_archive.file_path).name
+        tab_title = Path(file_path).name
         
         # Add tab
         tab_index = self.archive_tabs.addTab(archive_tab, tab_title)
@@ -951,7 +1019,7 @@ class ImgEditorTool(QWidget):
         self.current_archive_tab = archive_tab
         
         # Update archive manager
-        self.img_controller.switch_active_archive(img_archive.file_path)
+        self.img_controller.switch_active_archive(file_path)
         
         # Update status and info panel
         self.update_status()
@@ -974,9 +1042,11 @@ class ImgEditorTool(QWidget):
             
         for i in range(self.archive_tabs.count()):
             widget = self.archive_tabs.widget(i)
-            if isinstance(widget, IMGArchiveTab) and widget.img_archive.file_path == file_path:
-                self.archive_tabs.setCurrentIndex(i)
-                return True
+            if isinstance(widget, IMGArchiveTab):
+                widget_file_path = self.img_controller.get_archive_file_path(widget.img_archive)
+                if widget_file_path == file_path:
+                    self.archive_tabs.setCurrentIndex(i)
+                    return True
         return False
     
     def _close_archive_tab(self, index):
@@ -984,7 +1054,7 @@ class ImgEditorTool(QWidget):
         widget = self.archive_tabs.widget(index)
         if isinstance(widget, IMGArchiveTab):
             # Remove from controller
-            file_path = widget.img_archive.file_path
+            file_path = self.img_controller.get_archive_file_path(widget.img_archive)
             if file_path:  # Only try to close if file_path is not None
                 self.img_controller.close_archive(file_path)
             
@@ -1005,8 +1075,9 @@ class ImgEditorTool(QWidget):
         if isinstance(widget, IMGArchiveTab):
             self.current_archive_tab = widget
             # Only switch if file_path is not None
-            if widget.img_archive.file_path:
-                self.img_controller.switch_active_archive(widget.img_archive.file_path)
+            file_path = self.img_controller.get_archive_file_path(widget.img_archive)
+            if file_path:
+                self.img_controller.switch_active_archive(file_path)
             self.update_status()
             self.update_info_panel()
     
@@ -1024,9 +1095,11 @@ class ImgEditorTool(QWidget):
             # Find and remove specific tab
             for i in range(self.archive_tabs.count()):
                 widget = self.archive_tabs.widget(i)
-                if isinstance(widget, IMGArchiveTab) and widget.img_archive.file_path == file_path:
-                    self.archive_tabs.removeTab(i)
-                    break
+                if isinstance(widget, IMGArchiveTab):
+                    widget_file_path = self.img_controller.get_archive_file_path(widget.img_archive)
+                    if widget_file_path == file_path:
+                        self.archive_tabs.removeTab(i)
+                        break
             
             if self.archive_tabs.count() == 0:
                 self.show_empty_state()
@@ -1036,8 +1109,10 @@ class ImgEditorTool(QWidget):
     
     def _on_archive_switched(self, img_archive):
         """Handle when active archive is switched"""
-        if img_archive and img_archive.file_path:
-            self.switch_to_archive(img_archive.file_path)
+        if img_archive:
+            file_path = self.img_controller.get_archive_file_path(img_archive)
+            if file_path:
+                self.switch_to_archive(file_path)
         self.update_status()
         self.update_info_panel()
         self.archive_switched.emit(img_archive)
@@ -1065,11 +1140,13 @@ class ImgEditorTool(QWidget):
         # Update tab title to show modified state
         for i in range(self.archive_tabs.count()):
             widget = self.archive_tabs.widget(i)
-            if isinstance(widget, IMGArchiveTab) and widget.img_archive.file_path == file_path:
-                current_title = self.archive_tabs.tabText(i)
-                if not current_title.endswith("*"):
-                    self.archive_tabs.setTabText(i, current_title + "*")
-                break
+            if isinstance(widget, IMGArchiveTab):
+                widget_file_path = self.img_controller.get_archive_file_path(widget.img_archive)
+                if widget_file_path == file_path:
+                    current_title = self.archive_tabs.tabText(i)
+                    if not current_title.endswith("*"):
+                        self.archive_tabs.setTabText(i, current_title + "*")
+                    break
     
     def _on_tab_action_requested(self, action_name, data):
         """Handle action requests from tabs"""
@@ -1100,10 +1177,9 @@ class ImgEditorTool(QWidget):
         if self.current_archive_tab:
             archive_info = self.current_archive_tab.get_archive_info()
             
-            # Get RW summary from current archive
-            rw_summary = None
-            if self.current_archive_tab.img_archive:
-                rw_summary = self.current_archive_tab.img_archive.get_rw_version_summary()
+            # Get RW summary from controller instead of direct archive access
+            file_path = self.img_controller.get_archive_file_path(self.current_archive_tab.img_archive)
+            rw_summary = self.img_controller.get_rw_version_summary(file_path) if file_path else None
             
             # Get modification summary from controller
             mod_summary = self.img_controller.get_modification_info()
@@ -1116,10 +1192,11 @@ class ImgEditorTool(QWidget):
         """Create the right panel with tools and information"""
         right_panel = QWidget()
         right_layout = QVBoxLayout()
-        
+        rm = get_responsive_manager()
+
         # Set size policy and fixed dimensions
         right_panel.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Expanding)
-        right_panel.setMinimumWidth(350)
+        right_panel.setMinimumWidth(rm.get_scaled_size(350))
         
         # File info panel
         self.file_info_panel = IMGFileInfoPanel()
@@ -1171,7 +1248,8 @@ class ImgEditorTool(QWidget):
         """Create the tools section with a tabbed interface for better space management"""
         tools_group = QGroupBox("🔧 IMG Tools")
         tools_layout = QVBoxLayout()
-        
+        rm = get_responsive_manager()
+
         # Create a tab widget to organize tools
         tab_widget = QTabWidget()
         tab_widget.setTabPosition(QTabWidget.TabPosition.North)
@@ -1226,7 +1304,7 @@ class ImgEditorTool(QWidget):
         tools_group.setLayout(tools_layout)
         
         # Set size policies
-        tools_group.setMinimumHeight(250)  # Reduced minimum height
+        tools_group.setMinimumHeight(rm.get_scaled_size(250))  # Reduced minimum height
         tools_group.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         
         return tools_group
@@ -1234,11 +1312,12 @@ class ImgEditorTool(QWidget):
     def create_file_operations_group(self, parent_layout):
         """Create File Operations tool group"""
         file_ops_group = QGroupBox("File Operations")
-        
+        rm = get_responsive_manager()
+
         # Main grid layout for buttons
         file_grid = QGridLayout()
         # Set horizontal spacing between columns
-        file_grid.setHorizontalSpacing(15)
+        file_grid.setHorizontalSpacing(rm.get_scaled_size(15))
         # Set vertical spacing between rows
         
         # Create buttons
@@ -1279,10 +1358,11 @@ class ImgEditorTool(QWidget):
     def create_img_operations_group(self, parent_layout):
         """Create IMG Operations tool group"""
         img_ops_group = QGroupBox("IMG Operations")
-        
+        rm = get_responsive_manager()
+
         img_grid = QGridLayout()
         # Set horizontal spacing between columns
-        img_grid.setHorizontalSpacing(15)
+        img_grid.setHorizontalSpacing(rm.get_scaled_size(15))
         # Set vertical spacing between rows
         
         rebuild_btn = QPushButton("🔨 Rebuild")
@@ -1324,10 +1404,11 @@ class ImgEditorTool(QWidget):
     def create_import_export_group(self, parent_layout):
         """Create Import/Export tool group"""
         import_export_group = QGroupBox("Import/Export")
-        
+        rm = get_responsive_manager()
+
         import_grid = QGridLayout()
         # Set horizontal spacing between columns
-        import_grid.setHorizontalSpacing(10)
+        import_grid.setHorizontalSpacing(rm.get_scaled_size(10))
         # Set vertical spacing between rows
         import_grid.setVerticalSpacing(5)
         
