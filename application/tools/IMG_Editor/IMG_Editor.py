@@ -1406,6 +1406,17 @@ class ImgEditorTool(QWidget):
             self._export_selected()
         elif tool_name == "Export by Type":
             self._export_by_type()
+        elif tool_name in ["Rebuild", "Rebuild IMG"]:
+            # Trigger rebuild of the active archive
+            if not self.img_controller.get_active_archive():
+                message_box.warning("No IMG file is currently open.", "No IMG Open", self)
+                return
+            self.progress_panel.start_operation("Rebuilding archive")
+            success, message = self.img_controller.rebuild_img()
+            if not success:
+                message_box.error(message, "Rebuild Failed", self)
+        elif tool_name == "Rebuild All":
+            message_box.info("Rebuild All is not implemented yet.", "Not Implemented", self)
         else:
             # For other tools not yet implemented
             message_box.info(f"The '{tool_name}' feature is not implemented yet.", "Feature Not Implemented", self)

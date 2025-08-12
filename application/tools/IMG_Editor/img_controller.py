@@ -59,6 +59,8 @@ class IMGWorkerThread(QThread):
                 self._export_all_operation()
             elif self.operation_type == "export_by_type":
                 self._export_by_type_operation()
+            elif self.operation_type == "rebuild_img":
+                self._rebuild_img_operation()
             else:
                 self.operation_completed.emit(False, f"Unknown operation type: {self.operation_type}", None)
                 
@@ -507,6 +509,30 @@ class IMGWorkerThread(QThread):
             
         except Exception as e:
             self.operation_completed.emit(False, f"Export by type failed: {str(e)}", None)
+    
+    def _rebuild_img_operation(self):
+        """Rebuild the current IMG archive (write changes to disk)."""
+        from .core.IMG_Operations import IMG_Operations
+        archive = self.operation_data['archive']
+        output_path = self.operation_data.get('output_path')
+        target_version = self.operation_data.get('target_version')
+        try:
+            # Kick off with a small progress update
+            self.progress_updated.emit(0, "Starting rebuild...")
+            new_archive = IMG_Operations.rebuild_archive(
+                archive,
+                output_path=output_path,
+                version=target_version,
+                progress_callback=lambda pct, msg: self.progress_updated.emit(pct, msg)
+            )
+            self.progress_updated.emit(100, "Rebuild finished")
+            result_data = {
+                'new_archive': new_archive,
+                'output_path': output_path
+            }
+            self.operation_completed.emit(True, f"Rebuilt archive successfully", result_data)
+        except Exception as e:
+            self.operation_completed.emit(False, f"Rebuild failed: {str(e)}", None)
 
 
 class IMGController(QObject):
@@ -572,6 +598,15 @@ class IMGController(QObject):
             active_archive = self.get_active_archive()
             if active_archive:
                 self.entries_updated.emit(active_archive.entries)
+        elif operation_type == "rebuild_img":
+            if success and result_data and result_data.get('new_archive'):
+                new_archive = result_data['new_archive']
+                # Replace the archive in the manager
+                if new_archive.file_path:
+                    self.archive_manager.open_archives[new_archive.file_path] = new_archive
+                    self.archive_manager.active_archive = new_archive
+                # Notify UI of new entries/state
+                self.entries_updated.emit(new_archive.entries)
         elif operation_type == "delete_selected" and success:
             # Clear selection and update UI
             self.selected_entries.clear()
@@ -1223,10 +1258,16 @@ class IMGController(QObject):
         """Rebuilds the current IMG archive."""
         if not self.current_img:
             return False, "No IMG file is currently open"
-        
-        # This would be implemented later
-        # Placeholder for now
-        return False, "Rebuild feature not implemented yet"
+        try:
+            operation_data = {
+                'archive': self.current_img,
+                'output_path': output_path,
+                'target_version': None,
+            }
+            self._start_worker_operation("rebuild_img", operation_data)
+            return True, "Rebuilding archive..."
+        except Exception as e:
+            return False, f"Error starting rebuild: {str(e)}"
     
     def merge_img(self, img_paths, output_path):
         """Merges multiple IMG archives into one."""
