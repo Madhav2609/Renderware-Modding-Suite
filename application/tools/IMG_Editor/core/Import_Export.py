@@ -378,8 +378,10 @@ class Import_Export:
                 entry = Import_Export.import_file(img_archive, file_path, entry_name)
                 if entry:
                     imported_entries.append(entry)
+                    print(f"[DEBUG] Successfully imported {i+1}/{len(file_paths)}: {entry_name}")
                 else:
                     failed_files.append(file_path)
+                    print(f"[ERROR] Failed to import {i+1}/{len(file_paths)}: {file_path}")
                     
             except Exception as e:
                 failed_files.append(file_path)

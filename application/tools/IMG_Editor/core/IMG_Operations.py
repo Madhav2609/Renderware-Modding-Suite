@@ -267,6 +267,12 @@ class IMG_Operations:
         # Re-open the new archive to get fresh metadata and offsets
         report(99, "Verifying rebuilt archive...")
         new_archive = File_Operations.open_archive(final_img_path)
+        
+        # Analyze RenderWare versions for all entries in the rebuilt archive
+        if new_archive and hasattr(new_archive, 'entries') and new_archive.entries:
+            report(99, "Analyzing RenderWare versions...")
+            new_archive.analyze_all_entries_rw_versions()
+        
         # Clear modification tracking/state
         if hasattr(new_archive, 'clear_modification_tracking'):
             new_archive.clear_modification_tracking()
