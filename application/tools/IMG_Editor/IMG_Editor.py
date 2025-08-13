@@ -518,6 +518,27 @@ class IMGArchiveTab(QWidget):
         """Handle entry selection"""
         self.entries_selected.emit(entries)
     
+    def cleanup(self):
+        """Clean up resources when the archive tab is closed"""
+        try:
+            # Clear references
+            self.img_archive = None
+            self.parent_tool = None
+            
+            # Clear table data
+            if hasattr(self, 'entries_table'):
+                self.entries_table.setRowCount(0)
+            
+            print(f"IMGArchiveTab cleanup completed")
+            
+        except Exception as e:
+            print(f"Error during IMGArchiveTab cleanup: {e}")
+    
+    def closeEvent(self, event):
+        """Handle close event for the archive tab widget"""
+        self.cleanup()
+        super().closeEvent(event)
+    
     
 
 
@@ -982,6 +1003,13 @@ class ImgEditorTool(QWidget):
         """Close an archive tab"""
         widget = self.archive_tabs.widget(index)
         if isinstance(widget, IMGArchiveTab):
+            # Clean up the archive tab
+            if hasattr(widget, 'cleanup'):
+                try:
+                    widget.cleanup()
+                except Exception as e:
+                    print(f"Error during archive tab cleanup: {e}")
+            
             # Remove from controller
             file_path = self.img_controller.get_archive_file_path(widget.img_archive)
             if file_path:  # Only try to close if file_path is not None
@@ -1015,6 +1043,16 @@ class ImgEditorTool(QWidget):
     def _on_img_closed(self, file_path):
         """Handle when an archive is closed by the controller"""
         if not file_path:  # All archives closed
+            # Clean up all archive tabs
+            for i in range(self.archive_tabs.count()):
+                widget = self.archive_tabs.widget(i)
+                if isinstance(widget, IMGArchiveTab) and hasattr(widget, 'cleanup'):
+                    try:
+                        widget.cleanup()
+                    except Exception as e:
+                        print(f"Error during archive tab cleanup: {e}")
+            
+            # Remove all tabs
             while self.archive_tabs.count() > 0:
                 self.archive_tabs.removeTab(0)
             self.show_empty_state()
@@ -1025,6 +1063,13 @@ class ImgEditorTool(QWidget):
                 if isinstance(widget, IMGArchiveTab):
                     widget_file_path = self.img_controller.get_archive_file_path(widget.img_archive)
                     if widget_file_path == file_path:
+                        # Clean up the archive tab
+                        if hasattr(widget, 'cleanup'):
+                            try:
+                                widget.cleanup()
+                            except Exception as e:
+                                print(f"Error during archive tab cleanup: {e}")
+                        
                         self.archive_tabs.removeTab(i)
                         break
             
@@ -1440,4 +1485,66 @@ class ImgEditorTool(QWidget):
         """Handle progress panel cancel button click."""
         if self.img_controller.is_operation_running():
             self.img_controller.cancel_current_operation()
+    
+    def cleanup(self):
+        """Clean up resources when the tool tab is closed"""
+        try:
+            print(f"Starting IMG Editor Tool cleanup...")
+            
+            # Cancel any running operations
+            if self.img_controller.is_operation_running():
+                print("Cancelling running operations...")
+                self.img_controller.cancel_current_operation()
+            
+            # Wait a bit for operations to cancel
+            import time
+            time.sleep(0.1)
+            
+            # Close all archives to free memory
+            archive_count = self.img_controller.get_archive_count()
+            if archive_count > 0:
+                print(f"Closing {archive_count} archives...")
+                self.img_controller.close_all_archives()
+            
+            # Clear any references
+            self.current_archive_tab = None
+            
+            # Disconnect signals to prevent memory leaks
+            print("Disconnecting signals...")
+            try:
+                self.img_controller.img_loaded.disconnect()
+                self.img_controller.img_closed.disconnect()
+                self.img_controller.archive_switched.disconnect()
+                self.img_controller.entries_updated.disconnect()
+                self.img_controller.operation_progress.disconnect()
+                self.img_controller.operation_completed.disconnect()
+            except (TypeError, RuntimeError):
+                # Signals might already be disconnected
+                pass
+            
+            # Clear progress panel
+            if hasattr(self, 'progress_panel'):
+                print("Resetting progress panel...")
+                self.progress_panel.reset()
+            
+            # Clear file info panel
+            if hasattr(self, 'file_info_panel'):
+                print("Clearing file info panel...")
+                self.file_info_panel.update_info()
+            
+            # Clean up the controller
+            if hasattr(self.img_controller, 'cleanup'):
+                print("Cleaning up controller...")
+                self.img_controller.cleanup()
+            
+            print(f"IMG Editor Tool cleanup completed successfully")
+            
+        except Exception as e:
+            print(f"Error during IMG Editor cleanup: {e}")
+    
+    def closeEvent(self, event):
+        """Handle close event for the tool widget"""
+        print("IMG Editor Tool closeEvent triggered")
+        self.cleanup()
+        super().closeEvent(event)
     

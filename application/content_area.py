@@ -453,6 +453,18 @@ This tool will be implemented in a future update.""")
         if index > 0:
             # Get tab title for status update
             tab_title = self.tab_widget.tabText(index)
+            print(f"Closing tab: {tab_title} (index: {index})")
+            
+            # Get the widget before removing the tab
+            widget = self.tab_widget.widget(index)
+            
+            # Clean up tool resources if it's a tool tab
+            if widget and hasattr(widget, 'cleanup'):
+                try:
+                    print(f"Cleaning up tool widget for tab: {tab_title}")
+                    widget.cleanup()
+                except Exception as e:
+                    print(f"Warning: Error during tool cleanup: {e}")
             
             # Remove the tab
             self.tab_widget.removeTab(index)
@@ -464,6 +476,8 @@ This tool will be implemented in a future update.""")
             # Emit signal if we have a parent that can handle status updates
             if hasattr(self.parent(), 'status_bar'):
                 self.parent().status_bar.show_success(f"Closed tab: {tab_title}")
+            
+            print(f"Tab closed successfully: {tab_title}")
     
     def close_all_tabs_except_welcome(self):
         """Close all tabs except the welcome tab"""
@@ -482,3 +496,31 @@ This tool will be implemented in a future update.""")
         current_index = self.tab_widget.currentIndex()
         if current_index > 0:  # Don't close welcome tab
             self.close_tab(current_index)
+    
+    def cleanup_all_tools(self):
+        """Clean up all tool resources when the application is shutting down"""
+        try:
+            print(f"Starting cleanup of all tools in content area...")
+            tool_count = 0
+            
+            # Clean up all tool tabs
+            for i in range(self.tab_widget.count()):
+                widget = self.tab_widget.widget(i)
+                if widget and hasattr(widget, 'cleanup'):
+                    try:
+                        print(f"Cleaning up tool tab {i}...")
+                        widget.cleanup()
+                        tool_count += 1
+                    except Exception as e:
+                        print(f"Warning: Error during tool cleanup: {e}")
+            
+            print(f"All tool resources cleaned up - processed {tool_count} tools")
+            
+        except Exception as e:
+            print(f"Error during tool cleanup: {e}")
+    
+    def closeEvent(self, event):
+        """Handle close event for the content area"""
+        print("Content area closeEvent triggered")
+        self.cleanup_all_tools()
+        super().closeEvent(event)

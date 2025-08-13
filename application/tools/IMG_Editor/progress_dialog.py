@@ -336,4 +336,14 @@ class IMGProgressPanel(QFrame):
     def hide(self):
         """Hide the progress panel."""
         self.setVisible(False)
-        self._cancelled = False 
+        self._cancelled = False
+    
+    def reset(self):
+        """Reset the progress panel to initial state."""
+        self._cancelled = False
+        self.title_label.setText("Operation in Progress")
+        self.status_label.setText("Initializing...")
+        self.progress_bar.setValue(0)
+        self.cancel_button.setEnabled(True)
+        self.cancel_button.setText("Cancel")
+        self.setVisible(False) 

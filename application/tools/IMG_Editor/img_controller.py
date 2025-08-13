@@ -621,8 +621,48 @@ class IMGController(QObject):
         """Cancel the currently running operation."""
         if self.worker_thread and self.worker_thread.isRunning():
             self.worker_thread.cancel()
-            return True
-        return False
+            self.worker_thread.wait(1000)  # Wait up to 1 second for cancellation
+            if self.worker_thread.isRunning():
+                self.worker_thread.terminate()
+                self.worker_thread.wait(1000)
+    
+    def cleanup(self):
+        """Clean up all resources when the controller is being destroyed"""
+        try:
+            # Cancel any running operations
+            self.cancel_current_operation()
+            
+            # Close all archives
+            if self.get_archive_count() > 0:
+                self.close_all_archives()
+            
+            # Clear references
+            self.worker_thread = None
+            self.selected_entries = []
+            
+            # Disconnect all signals
+            try:
+                self.img_loaded.disconnect()
+                self.img_closed.disconnect()
+                self.archive_switched.disconnect()
+                self.entries_updated.disconnect()
+                self.operation_progress.disconnect()
+                self.operation_completed.disconnect()
+            except (TypeError, RuntimeError):
+                # Signals might already be disconnected
+                pass
+            
+            print("IMGController cleanup completed")
+            
+        except Exception as e:
+            print(f"Error during IMGController cleanup: {e}")
+    
+    def __del__(self):
+        """Destructor to ensure cleanup when the controller is destroyed"""
+        try:
+            self.cleanup()
+        except Exception as e:
+            print(f"Error in IMGController destructor: {e}")
     
     def is_operation_running(self):
         """Check if a heavy operation is currently running."""
@@ -698,10 +738,37 @@ class IMGController(QObject):
     
     def close_all_archives(self):
         """Closes all open IMG archives."""
-        closed_count = len(self.archive_manager.open_archives)
-        self.archive_manager.close_all_archives()
-        self.img_closed.emit("")  # Empty string indicates all closed
-        return True, f"Closed {closed_count} archive(s)"
+        try:
+            closed_count = len(self.archive_manager.open_archives)
+            
+            # Get all archive paths before closing
+            archive_paths = list(self.archive_manager.open_archives.keys())
+            
+            # Close each archive individually to ensure proper cleanup
+            for file_path in archive_paths:
+                try:
+                    img_archive = self.archive_manager.get_archive(file_path)
+                    if img_archive:
+                        # Close the archive using the core function
+                        File_Operations.close_archive(img_archive, self.archive_manager)
+                except Exception as e:
+                    print(f"Error closing archive {file_path}: {e}")
+            
+            # Clear the archive manager
+            self.archive_manager.close_all_archives()
+            
+            # Clear any cached data
+            self.selected_entries = []
+            
+            # Emit signal that all archives are closed
+            self.img_closed.emit("")  # Empty string indicates all closed
+            
+            print(f"Successfully closed {closed_count} archive(s)")
+            return True, f"Closed {closed_count} archive(s)"
+            
+        except Exception as e:
+            print(f"Error in close_all_archives: {e}")
+            return False, f"Error closing archives: {str(e)}"
     
     def switch_active_archive(self, file_path):
         """Switches the active archive."""

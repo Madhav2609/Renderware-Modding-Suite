@@ -162,6 +162,39 @@ class IMGArchive:
         self.modified = False     # Track if the archive has been modified
         self.deleted_entries = [] # Track deleted entries for modification summary
     
+    def __del__(self):
+        """Destructor to ensure proper cleanup when the object is destroyed"""
+        try:
+            # Clear all references to free memory
+            self.file_path = None
+            self.dir_path = None
+            self.version = None
+            self.entries = []
+            self.modified = False
+            self.deleted_entries = []
+        except Exception as e:
+            # Ignore errors during cleanup
+            pass
+    
+    def cleanup(self):
+        """Explicit cleanup method to free resources"""
+        try:
+            # Clear all entries and their data
+            for entry in self.entries:
+                if hasattr(entry, 'data') and entry.data is not None:
+                    entry.data = None
+            
+            # Clear all references
+            self.entries = []
+            self.deleted_entries = []
+            self.file_path = None
+            self.dir_path = None
+            self.version = None
+            self.modified = False
+            
+        except Exception as e:
+            print(f"Error during IMGArchive cleanup: {e}")
+    
     def get_entry_by_name(self, name):
         """Finds an entry by its name (case-insensitive)."""
         name = name.lower()

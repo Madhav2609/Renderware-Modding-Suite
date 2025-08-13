@@ -41,20 +41,79 @@ class ArchiveManager:
     def close_archive(self, file_path):
         """Close a specific archive."""
         if file_path in self.open_archives:
-            del self.open_archives[file_path]
-            if self.active_archive and self.active_archive.file_path == file_path:
-                # Set new active archive if available
-                if self.open_archives:
-                    self.active_archive = next(iter(self.open_archives.values()))
-                else:
-                    self.active_archive = None
-            return True
+            try:
+                # Get the archive before removing it
+                img_archive = self.open_archives[file_path]
+                
+                # Clean up the archive object using its cleanup method
+                if img_archive:
+                    if hasattr(img_archive, 'cleanup'):
+                        img_archive.cleanup()
+                    else:
+                        # Fallback cleanup
+                        img_archive.file_path = None
+                        img_archive.dir_path = None
+                        img_archive.version = None
+                        img_archive.entries = []
+                        img_archive.modified = False
+                
+                # Remove from open archives
+                del self.open_archives[file_path]
+                
+                # Update active archive if needed
+                if self.active_archive and self.active_archive.file_path == file_path:
+                    # Set new active archive if available
+                    if self.open_archives:
+                        self.active_archive = next(iter(self.open_archives.values()))
+                    else:
+                        self.active_archive = None
+                
+                print(f"Successfully closed archive: {file_path}")
+                return True
+                
+            except Exception as e:
+                print(f"Error closing archive {file_path}: {e}")
+                # Force remove even if cleanup failed
+                if file_path in self.open_archives:
+                    del self.open_archives[file_path]
+                return False
         return False
     
     def close_all_archives(self):
         """Close all open archives."""
-        self.open_archives.clear()
-        self.active_archive = None
+        try:
+            # Get all archive paths before clearing
+            archive_paths = list(self.open_archives.keys())
+            
+            # Close each archive individually to ensure proper cleanup
+            for file_path in archive_paths:
+                try:
+                    img_archive = self.open_archives[file_path]
+                    if img_archive:
+                        # Use the archive's cleanup method
+                        if hasattr(img_archive, 'cleanup'):
+                            img_archive.cleanup()
+                        else:
+                            # Fallback cleanup
+                            img_archive.file_path = None
+                            img_archive.dir_path = None
+                            img_archive.version = None
+                            img_archive.entries = []
+                            img_archive.modified = False
+                except Exception as e:
+                    print(f"Error cleaning up archive {file_path}: {e}")
+            
+            # Clear all references
+            self.open_archives.clear()
+            self.active_archive = None
+            
+            print(f"Successfully closed {len(archive_paths)} archive(s)")
+            
+        except Exception as e:
+            print(f"Error in ArchiveManager.close_all_archives: {e}")
+            # Force clear even if there was an error
+            self.open_archives.clear()
+            self.active_archive = None
 
 class File_Operations:
     """Class containing methods for file operations on IMG archives."""
@@ -224,15 +283,24 @@ class File_Operations:
         Returns:
             True if successful, False otherwise
         """
-        # Remove from archive manager if provided
-        if archive_manager and img_archive.file_path:
-            archive_manager.close_archive(img_archive.file_path)
-        
-        # Reset the archive object
-        img_archive.file_path = None
-        img_archive.dir_path = None
-        img_archive.version = None
-        img_archive.entries = []
-        img_archive.modified = False
-        
-        return True
+        try:
+            # Remove from archive manager if provided
+            if archive_manager and img_archive.file_path:
+                archive_manager.close_archive(img_archive.file_path)
+            
+            # Use the archive's cleanup method
+            if hasattr(img_archive, 'cleanup'):
+                img_archive.cleanup()
+            else:
+                # Fallback cleanup if cleanup method doesn't exist
+                img_archive.file_path = None
+                img_archive.dir_path = None
+                img_archive.version = None
+                img_archive.entries = []
+                img_archive.modified = False
+            
+            return True
+            
+        except Exception as e:
+            print(f"Error in close_archive: {e}")
+            return False

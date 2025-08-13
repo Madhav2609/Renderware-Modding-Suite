@@ -298,22 +298,67 @@ class RenderwareModdingSuite(QMainWindow):
         """Update memory usage display"""
         try:
             import psutil
-            process = psutil.Process(os.getpid())
-            memory_mb = process.memory_info().rss / 1024 / 1024
-            self.status_bar.set_memory_usage(memory_mb)
+            process = psutil.Process()
+            memory_info = process.memory_info()
+            memory_mb = memory_info.rss / 1024 / 1024
+            
+            # Update status bar with memory usage - pass the float value directly
+            if hasattr(self, 'status_bar'):
+                self.status_bar.set_memory_usage(memory_mb)
+                
         except ImportError:
-            # psutil not available
-            print("Warning: psutil module not available. Memory usage monitoring disabled.")
-            self.memory_timer.stop()  # Stop the timer to avoid repeated import attempts
+            # psutil not available, skip memory monitoring
+            pass
         except Exception as e:
-            # Any other error
-            print(f"Error in memory monitoring: {str(e)}")
-            self.memory_timer.stop()  # Stop the timer to prevent repeated errors
-    
+            print(f"Error updating memory usage: {e}")
     def closeEvent(self, event):
-        """Handle application close event"""
-        self.status_bar.set_status("Shutting down...")
+        """Handle application close event to ensure proper cleanup"""
+        try:
+            print("Application shutting down - cleaning up resources...")
+            
+            # Clean up content area (which includes all tool tabs)
+            if hasattr(self, 'content_area'):
+                self.content_area.cleanup_all_tools()
+            
+            # Stop memory monitoring timer
+            if hasattr(self, 'memory_timer'):
+                self.memory_timer.stop()
+            
+            print("Application cleanup completed")
+            
+        except Exception as e:
+            print(f"Error during application cleanup: {e}")
+        
+        # Accept the close event
         event.accept()
+    
+    def aboutToQuit(self):
+        """Handle application quit event"""
+        try:
+            print("Application about to quit - final cleanup...")
+            
+            # Force cleanup of all resources
+            if hasattr(self, 'content_area'):
+                self.content_area.cleanup_all_tools()
+            
+            print("Final cleanup completed")
+            
+        except Exception as e:
+            print(f"Error during final cleanup: {e}")
+    
+    def __del__(self):
+        """Destructor to ensure cleanup when the application is destroyed"""
+        try:
+            print("Main application destructor called - cleaning up...")
+            
+            # Force cleanup of all resources
+            if hasattr(self, 'content_area'):
+                self.content_area.cleanup_all_tools()
+            
+            print("Main application cleanup completed")
+            
+        except Exception as e:
+            print(f"Error in main application destructor: {e}")
     
     def zoom_in(self):
         """Increase UI scale"""
