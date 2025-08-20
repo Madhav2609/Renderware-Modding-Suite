@@ -3,7 +3,7 @@ UI interaction handlers for the IMG Editor.
 These methods implement the direct UI interactions that connect the ImgEditorTool class to the controller.
 """
 
-from PySide6.QtWidgets import QFileDialog, QDialog, QRadioButton, QDialogButtonBox, QVBoxLayout, QMessageBox, QCheckBox, QComboBox, QLabel, QHBoxLayout, QPushButton
+from PyQt6.QtWidgets import QFileDialog, QDialog, QRadioButton, QDialogButtonBox, QVBoxLayout, QMessageBox, QCheckBox, QComboBox, QLabel, QHBoxLayout, QPushButton
 from application.common.message_box import message_box
 from application.tools.IMG_Editor.IMG_Editor import IMGArchiveTab
 
@@ -166,7 +166,7 @@ def _import_Via_IDE(self):
         message_box.warning("Please open an IMG file first.", "No IMG File Open", self)
         return
     
-    from PySide6.QtWidgets import QFileDialog, QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTextEdit, QGroupBox, QGridLayout
+    from PyQt6.QtWidgets import QFileDialog, QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTextEdit, QGroupBox, QGridLayout
     
     # Select IDE file
     ide_file, _ = QFileDialog.getOpenFileName(

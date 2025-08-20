@@ -7,8 +7,8 @@ implementing the controller in the MVC pattern.
 from pathlib import Path
 import os
 
-from PySide6.QtWidgets import QMessageBox
-from PySide6.QtCore import QObject, Signal, QThread, QMutex, QMutexLocker
+from PyQt6.QtWidgets import QMessageBox
+from PyQt6.QtCore import QObject, pyqtSignal, QThread, QMutex, QMutexLocker
 
 # Import core modules
 from .core import (
@@ -26,9 +26,9 @@ class IMGWorkerThread(QThread):
     Worker thread for handling heavy IMG operations without blocking the UI.
     """
     # Progress signals
-    progress_updated = Signal(int, str)  # progress_percentage, message
-    operation_completed = Signal(bool, str, object)  # success, message, result_data
-    
+    progress_updated = pyqtSignal(int, str)  # progress_percentage, message
+    operation_completed = pyqtSignal(bool, str, object)  # success, message, result_data
+
     def __init__(self, operation_type, operation_data, parent=None):
         super().__init__(parent)
         self.operation_type = operation_type
@@ -542,12 +542,12 @@ class IMGController(QObject):
     Supports multiple IMG archives with tab-based management.
     """
     # Define signals for UI updates
-    img_loaded = Signal(object)  # Signal emitted when an IMG file is loaded
-    img_closed = Signal(str)  # Signal emitted when an IMG file is closed (file_path)
-    entries_updated = Signal(list)  # Signal emitted when entries are updated
-    operation_progress = Signal(int, str)  # Signal for long operations: progress, message
-    operation_completed = Signal(bool, str)  # Signal for operation completion: success, message
-    archive_switched = Signal(object)  # Signal when active archive changes
+    img_loaded = pyqtSignal(object)  # Signal emitted when an IMG file is loaded
+    img_closed = pyqtSignal(str)  # Signal emitted when an IMG file is closed (file_path)
+    entries_updated = pyqtSignal(list)  # Signal emitted when entries are updated
+    operation_progress = pyqtSignal(int, str)  # Signal for long operations: progress, message
+    operation_completed = pyqtSignal(bool, str)  # Signal for operation completion: success, message
+    archive_switched = pyqtSignal(object)  # Signal when active archive changes
     
     def __init__(self):
         super().__init__()

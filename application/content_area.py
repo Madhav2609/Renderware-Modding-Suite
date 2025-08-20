@@ -4,14 +4,14 @@ Main area for displaying file content and tool interfaces
 """
 
 import os
-from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
+from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
                             QTextEdit, QTabWidget, QScrollArea, QGroupBox,
                             QPushButton, QMenu, QTabBar, QToolButton, QTableWidget,
                             QTableWidgetItem, QHeaderView, QSplitter, QTreeWidget,
                             QTreeWidgetItem, QLineEdit, QComboBox, QProgressBar,
                             QFrame, QSizePolicy)
-from PySide6.QtCore import Qt, Signal, QPoint, QPropertyAnimation, QEasingCurve
-from PySide6.QtGui import QAction, QIcon
+from PyQt6.QtCore import Qt, pyqtSignal, QPoint, QPropertyAnimation, QEasingCurve
+from PyQt6.QtGui import QAction, QIcon
 from application.tools import ToolRegistry
 
 

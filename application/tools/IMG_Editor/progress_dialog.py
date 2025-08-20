@@ -3,10 +3,10 @@ Progress Dialog for IMG Editor Operations
 Provides a modal dialog with progress bar and cancel functionality for long-running operations.
 """
 
-from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, 
+from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, 
                             QProgressBar, QPushButton, QFrame)
-from PySide6.QtCore import Qt, Signal, QTimer
-from PySide6.QtGui import QFont, QFontDatabase
+from PyQt6.QtCore import Qt, pyqtSignal, QTimer
+from PyQt6.QtGui import QFont, QFontDatabase
 
 from application.responsive_utils import get_responsive_manager
 from application.styles import ModernDarkTheme
@@ -30,8 +30,8 @@ class IMGProgressDialog(QDialog):
     """
     
     # Signals
-    cancelled = Signal()  # Emitted when user cancels the operation
-    
+    cancelled = pyqtSignal()  # Emitted when user cancels the operation
+
     def __init__(self, title="Operation in Progress", parent=None):
         super().__init__(parent)
         self.setWindowTitle(title)
@@ -178,8 +178,8 @@ class IMGProgressPanel(QFrame):
     """
     
     # Signals
-    cancelled = Signal()  # Emitted when user cancels the operation
-    
+    cancelled = pyqtSignal()  # Emitted when user cancels the operation
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setVisible(False)  # Hidden by default

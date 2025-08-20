@@ -199,9 +199,9 @@ YourTool for Renderware Modding Suite
 Brief description of what this tool does
 """
 
-from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
+from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
                             QPushButton, QGroupBox)
-from PySide6.QtCore import Qt, Signal
+from PyQt6.QtCore import Qt, pyqtSignal
 
 from application.common.message_box import message_box
 from application.responsive_utils import get_responsive_manager
@@ -213,8 +213,8 @@ class YourTool(QWidget):
     """Your tool main widget"""
     
     # Signals for communication with main application
-    tool_action = Signal(str, str)  # action_name, parameters
-    status_update = Signal(str)     # status_message
+    tool_action = pyqtSignal(str, str)  # action_name, parameters
+    status_update = pyqtSignal(str)     # status_message
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -285,7 +285,7 @@ Controller for YourTool business logic
 Handles all non-UI operations
 """
 
-from PySide6.QtCore import QObject, Signal
+from PyQt6.QtCore import QObject, pyqtSignal
 from pathlib import Path
 
 
@@ -293,9 +293,9 @@ class YourController(QObject):
     """Controller for YourTool operations"""
     
     # Signals for UI communication
-    operation_completed = Signal(str)  # success_message
-    error_occurred = Signal(str)       # error_message
-    progress_updated = Signal(int)     # progress_percentage
+    operation_completed = pyqtSignal(str)  # success_message
+    error_occurred = pyqtSignal(str)       # error_message
+    progress_updated = pyqtSignal(int)     # progress_percentage
     
     def __init__(self):
         super().__init__()
@@ -364,8 +364,8 @@ import os
 from pathlib import Path
 
 # Third-party imports
-from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel)
-from PySide6.QtCore import Qt, Signal
+from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel)
+from PyQt6.QtCore import Qt, pyqtSignal
 
 # Application imports (use relative imports within tools)
 from application.common.message_box import message_box
@@ -463,7 +463,7 @@ def create_styled_button(self, text, action=None):
 ```python
 def browse_file(self, filter_text="All Files (*)"):
     """Standard file browsing with error handling"""
-    from PySide6.QtWidgets import QFileDialog
+    from PyQt6.QtWidgets import QFileDialog
     
     file_path, _ = QFileDialog.getOpenFileName(
         self, 
@@ -481,8 +481,8 @@ def browse_file(self, filter_text="All Files (*)"):
 ```python
 def show_progress_dialog(self, title, maximum=100):
     """Standard progress dialog"""
-    from PySide6.QtWidgets import QProgressDialog
-    from PySide6.QtCore import Qt
+    from PyQt6.QtWidgets import QProgressDialog
+    from PyQt6.QtCore import Qt
     
     progress = QProgressDialog(title, "Cancel", 0, maximum, self)
     progress.setWindowModality(Qt.WindowModality.WindowModal)
@@ -512,7 +512,7 @@ def show_progress_dialog(self, title, maximum=100):
 ```python
 def create_data_table(self, headers):
     """Create a consistently styled table"""
-    from PySide6.QtWidgets import QTableWidget, QHeaderView
+    from PyQt6.QtWidgets import QTableWidget, QHeaderView
     
     table = QTableWidget()
     table.setColumnCount(len(headers))

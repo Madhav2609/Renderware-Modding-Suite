@@ -283,7 +283,7 @@ class IMG_Operations:
     @staticmethod
     def merge_archives(archives, output_path):
         """
-        Merges multiple IMG archives into one.
+        Merges multiple openedIMG archives into one.
         
         Args:
             archives: List of IMGArchive objects to merge

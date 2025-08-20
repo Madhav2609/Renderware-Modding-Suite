@@ -1,6 +1,6 @@
 """
 Comprehensive Build script for Renderware Modding Suite
-Builds executable using Nuitka with full Qt/PySide6 support for cross-platform deployment.
+Builds executable using Nuitka with full Qt/PyQt6 support for cross-platform deployment.
 """
 
 import subprocess
@@ -48,8 +48,8 @@ def build_executable_comprehensive():
         f"--output-dir={dist_dir}",           # Output directory
         f"--output-filename=RenderwareModdingSuite.exe",
         
-        # PySide6 Configuration
-        "--enable-plugin=pyside6",            # Enable PySide6 plugin
+        # PyQt6 Configuration
+        "--enable-plugin=PyQt6",            # Enable PyQt6 plugin
         
         # Qt Plugins - Include all necessary plugins for styling and platform support
         "--include-qt-plugins=platforms,styles,imageformats,iconengines",

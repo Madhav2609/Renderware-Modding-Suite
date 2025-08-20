@@ -27,7 +27,7 @@ The Renderware Modding Suite is designed to be a comprehensive solution for modd
 
 ### Core Features
 
-- **Modern and Intuitive UI:** A sleek, dark-themed interface built with PySide6 that enforces consistent theming regardless of system settings.
+- **Modern and Intuitive UI:** A sleek, dark-themed interface built with PyQt6 that enforces consistent theming regardless of system settings.
 - **Responsive Design:** Adaptive UI that automatically adjusts to different screen sizes, DPI settings, and scaling factors.
 - **System-Independent Theming:** Dark theme that works consistently across all operating systems without depending on system theme settings.
 - **Modular Tool System:** The application is built around a central tool registry, allowing new modding tools to be seamlessly integrated.
@@ -80,12 +80,12 @@ The application follows a modern, modular architecture to ensure scalability and
 ## Technical Details
 
 - **Language:** Python 3.8+
-- **UI Framework:** PySide6
+- **UI Framework:** PyQt6
 - **Styling:** A custom dark theme system (`styles.py`) with system-independent theme enforcement.
 - **Responsive Design:** Adaptive UI that scales properly across different screen sizes and DPI settings.
 - **Architecture:** Modular MVC pattern with separation of UI, business logic, and data management.
 - **Dependencies:**
-  - `PySide6`: For the graphical user interface.
+  - `PyQt6`: For the graphical user interface.
   - `psutil`: For monitoring system memory usage.
   - `nuitka`: For building optimized executables (optional).
   - `darkdetect`: Legacy dependency (no longer used - theme is now system-independent).
@@ -273,7 +273,7 @@ Alternatively, you can use Nuitka manually for building:
 
 2.  **Build the executable:**
     ```sh
-    nuitka --standalone --onefile --enable-plugin=pyside6,qt-plugins application/main.py
+    nuitka --standalone --onefile --enable-plugin=PyQt6,qt-plugins application/main.py
     ```
 
     The final executable will be located in the `dist/` directory.

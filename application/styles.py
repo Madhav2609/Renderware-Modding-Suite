@@ -15,7 +15,7 @@ def initialize_qt_resources():
         try:
             # Ensure Qt plugins can be found
             executable_dir = os.path.dirname(sys.executable)
-            qt_plugin_path = os.path.join(executable_dir, "PySide6", "plugins")
+            qt_plugin_path = os.path.join(executable_dir, "PyQt6", "plugins")
             
             if os.path.exists(qt_plugin_path):
                 os.environ['QT_PLUGIN_PATH'] = qt_plugin_path
@@ -64,7 +64,7 @@ class ModernDarkTheme:
     @staticmethod
     def apply_dark_palette(app):
         """Apply dark palette to the application to override system theme"""
-        from PySide6.QtGui import QPalette, QColor
+        from PyQt6.QtGui import QPalette, QColor
         
         dark_palette = QPalette()
         # Background colors
