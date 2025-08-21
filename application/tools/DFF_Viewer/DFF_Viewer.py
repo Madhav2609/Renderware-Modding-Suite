@@ -538,6 +538,131 @@ class Viewer3D(QWidget):
         # Dictionary to hold the created entities for mapping
         geometry_entities_map = {}
 
+        # --- Build frame hierarchy world transforms ---
+        # Represent each frame as rotation axes (right, up, at) and position.
+        from collections import namedtuple
+        AxesPos = namedtuple('AxesPos', 'rx ry rz ux uy uz ax ay az px py pz')
+
+        def _local_axes_pos(frame) -> AxesPos:
+            m = frame.rotation_matrix
+            p = frame.position
+            return AxesPos(
+                m.right.x, m.right.y, m.right.z,
+                m.up.x,    m.up.y,    m.up.z,
+                m.at.x,    m.at.y,    m.at.z,
+                p.x, p.y, p.z
+            )
+
+        def _mul3x3(a, b):
+            # a,b are 3x3 as tuples in row-major: rows are (rx,ry,rz), (ux,uy,uz), (ax,ay,az)
+            return (
+                a[0]*b[0] + a[1]*b[3] + a[2]*b[6],
+                a[0]*b[1] + a[1]*b[4] + a[2]*b[7],
+                a[0]*b[2] + a[1]*b[5] + a[2]*b[8],
+
+                a[3]*b[0] + a[4]*b[3] + a[5]*b[6],
+                a[3]*b[1] + a[4]*b[4] + a[5]*b[7],
+                a[3]*b[2] + a[4]*b[5] + a[5]*b[8],
+
+                a[6]*b[0] + a[7]*b[3] + a[8]*b[6],
+                a[6]*b[1] + a[7]*b[4] + a[8]*b[7],
+                a[6]*b[2] + a[7]*b[5] + a[8]*b[8],
+            )
+
+        def _mul_vec3(mat, v):
+            # mat is 3x3 row-major as tuple len 9; v is (x,y,z)
+            return (
+                mat[0]*v[0] + mat[1]*v[1] + mat[2]*v[2],
+                mat[3]*v[0] + mat[4]*v[1] + mat[5]*v[2],
+                mat[6]*v[0] + mat[7]*v[1] + mat[8]*v[2],
+            )
+
+        frame_world_mats: list[QMatrix4x4] = []
+        parents: list[int] = []
+        locals_axes: list[tuple] = []
+        locals_pos: list[tuple] = []
+
+        if hasattr(dff_file, 'frame_list') and dff_file.frame_list:
+            # Pre-size arrays
+            count = len(dff_file.frame_list)
+            frame_world_mats = [QMatrix4x4() for _ in range(count)]
+            parents = [ -1 for _ in range(count) ]
+            locals_axes = [None for _ in range(count)]
+            locals_pos = [None for _ in range(count)]
+
+            for idx, f in enumerate(dff_file.frame_list):
+                ap = _local_axes_pos(f)
+                locals_axes[idx] = (ap.rx, ap.ry, ap.rz, ap.ux, ap.uy, ap.uz, ap.ax, ap.ay, ap.az)
+                locals_pos[idx] = (ap.px, ap.py, ap.pz)
+                parents[idx] = getattr(f, 'parent', -1)
+
+            def build_world(use_parent_times_local: bool):
+                computed = [False] * len(dff_file.frame_list)
+                w_axes = [None] * len(dff_file.frame_list)
+                w_pos = [None] * len(dff_file.frame_list)
+
+                def compute(idx: int):
+                    if computed[idx]:
+                        return w_axes[idx], w_pos[idx]
+                    parent = parents[idx]
+                    laxes = locals_axes[idx]
+                    lpos = locals_pos[idx]
+                    if parent is not None and parent >= 0 and parent < len(locals_axes):
+                        p_axes, p_pos = compute(parent)
+                        if use_parent_times_local:
+                            axes = _mul3x3(p_axes, laxes)
+                            t = _mul_vec3(p_axes, lpos)
+                            pos = (t[0] + p_pos[0], t[1] + p_pos[1], t[2] + p_pos[2])
+                        else:
+                            axes = _mul3x3(laxes, p_axes)
+                            t = _mul_vec3(laxes, p_pos)
+                            pos = (lpos[0] + t[0], lpos[1] + t[1], lpos[2] + t[2])
+                    else:
+                        axes = laxes
+                        pos = lpos
+                    w_axes[idx] = axes
+                    w_pos[idx] = pos
+                    computed[idx] = True
+                    return axes, pos
+
+                for i in range(len(dff_file.frame_list)):
+                    compute(i)
+                # Variance score of positions to detect collapse
+                if w_pos:
+                    cx = sum(p[0] for p in w_pos) / len(w_pos)
+                    cy = sum(p[1] for p in w_pos) / len(w_pos)
+                    cz = sum(p[2] for p in w_pos) / len(w_pos)
+                    var = sum((p[0]-cx)**2 + (p[1]-cy)**2 + (p[2]-cz)**2 for p in w_pos) / len(w_pos)
+                else:
+                    var = 0.0
+                return w_axes, w_pos, var
+
+            axes_a, pos_a, var_a = build_world(True)   # parent * local
+            axes_b, pos_b, var_b = build_world(False)  # local * parent
+
+            chosen_axes = axes_a if var_a >= var_b else axes_b
+            chosen_pos = pos_a if var_a >= var_b else pos_b
+
+            # Build QMatrix4x4 list by assigning in place
+            for idx in range(len(dff_file.frame_list)):
+                axes = chosen_axes[idx]
+                pos = chosen_pos[idx]
+                frame_world_mats[idx] = QMatrix4x4(
+                    axes[0], axes[3], axes[6], pos[0],
+                    axes[1], axes[4], axes[7], pos[1],
+                    axes[2], axes[5], axes[8], pos[2],
+                    0, 0, 0, 1
+                )
+
+            # Minimal debug: print which convention chosen and a few sample positions
+            try:
+                print(f"[DFF Viewer] Transform order chosen: {'parent*local' if var_a >= var_b else 'local*parent'} (var_a={var_a:.3f}, var_b={var_b:.3f})")
+                for i in range(min(5, len(chosen_pos))):
+                    px,py,pz = chosen_pos[i]
+                    print(f"  Frame {i}: parent={parents[i]} world_pos=({px:.3f},{py:.3f},{pz:.3f})")
+            except Exception:
+                pass
+
         for atomic in dff_file.atomic_list:
             if atomic.geometry >= len(dff_file.geometry_list):
                 continue
@@ -626,15 +751,9 @@ class Viewer3D(QWidget):
             renderer.setGeometry(qt_geometry)
 
             transform = QTransform(part_entity)
-            if atomic.frame < len(dff_file.frame_list):
-                frame = dff_file.frame_list[atomic.frame]
-                m = frame.rotation_matrix
-                p = frame.position
-                qmatrix = QMatrix4x4(m.right.x, m.up.x, m.at.x, p.x,
-                                     m.right.y, m.up.y, m.at.y, p.y,
-                                     m.right.z, m.up.z, m.at.z, p.z,
-                                     0, 0, 0, 1).transposed()
-                transform.setMatrix(qmatrix)
+            # Apply full world transform so children follow hierarchy
+            if atomic.frame < len(frame_world_mats):
+                transform.setMatrix(frame_world_mats[atomic.frame])
 
             material = QPhongMaterial(part_entity)
             material.setAmbient(QtGui.QColor(40, 40, 50)) # Add slight ambient color
