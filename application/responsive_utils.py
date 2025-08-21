@@ -8,6 +8,7 @@ from PyQt6.QtWidgets import QApplication
 from PyQt6.QtCore import QRect
 from PyQt6.QtGui import QScreen, QFont
 from typing import Dict, Tuple
+from application.debug_system import get_debug_logger, LogCategory
 
 
 class ResponsiveManager:
@@ -15,6 +16,7 @@ class ResponsiveManager:
     
     def __init__(self):
         self.app = QApplication.instance()
+        self.debug_logger = get_debug_logger()
         self.screen_info = self._get_screen_info()
         self.scale_factor = self._calculate_scale_factor()
         self.breakpoint = self._determine_breakpoint()
@@ -131,18 +133,20 @@ class ResponsiveManager:
         return (margin, margin, margin, margin)
     
     def get_window_size(self) -> Tuple[int, int]:
-        """Get recommended initial window size"""
-        width = self.screen_info["width"]
-        height = self.screen_info["height"]
-        
-        # Use percentage of screen size
+        screen = self.app.primaryScreen() if self.app else None
+        if screen:
+            avail = screen.availableGeometry()
+            width, height = avail.width(), avail.height()
+        else:
+            width, height = self.screen_info["width"], self.screen_info["height"]
+
         if self.breakpoint == "small":
             return (int(width * 0.9), int(height * 0.85))
         elif self.breakpoint == "medium":
             return (int(width * 0.85), int(height * 0.8))
         else:
             return (int(width * 0.8), int(height * 0.75))
-    
+                
     def get_font_config(self) -> Dict[str, Dict]:
         """Get font configuration for different UI elements"""
         return {
@@ -188,11 +192,16 @@ class ResponsiveManager:
     
     def print_debug_info(self):
         """Print debug information about current scaling"""
-        print(f"🖥️ Screen Info: {self.screen_info['width']}x{self.screen_info['height']} @ {self.screen_info['dpi']} DPI")
-        print(f"📐 Scale Factor: {self.scale_factor:.2f}")
-        print(f"📱 Breakpoint: {self.breakpoint}")
-        print(f"🎨 Font Sizes: {self.get_font_config()}")
-        print(f"📏 Spacing: {self.get_spacing_config()}")
+        # Summary info
+        self.debug_logger.info(LogCategory.UI, "Responsive manager debug info", {
+            "screen": f"{self.screen_info['width']}x{self.screen_info['height']}",
+            "dpi": self.screen_info.get('dpi'),
+            "scale_factor": round(self.scale_factor, 2),
+            "breakpoint": self.breakpoint,
+        })
+        # Detailed configs
+        self.debug_logger.debug(LogCategory.UI, "Font configuration", self.get_font_config())
+        self.debug_logger.debug(LogCategory.UI, "Spacing configuration", self.get_spacing_config())
 
 
 # Global responsive manager instance

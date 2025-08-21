@@ -12,6 +12,7 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                             QFrame, QSizePolicy)
 from PyQt6.QtCore import Qt, pyqtSignal, QPoint, QPropertyAnimation, QEasingCurve, QTimer
 from PyQt6.QtGui import QAction, QIcon
+from application.debug_system import get_debug_logger, LogCategory
 from application.tools import ToolRegistry
 
 
@@ -21,6 +22,7 @@ class ContentArea(QWidget):
     def __init__(self):
         super().__init__()
         self.current_file = None
+        self.debug_logger = get_debug_logger()
         self.setup_ui()
     
     def setup_ui(self):
@@ -455,7 +457,7 @@ This tool will be implemented in a future update.""")
             try:
                 widget.cleanup()
             except Exception as e:
-                print(f"Warning: Error during widget cleanup: {e}")
+                self.debug_logger.warning(LogCategory.TOOL, "Error during widget cleanup", {"error": str(e)})
         
         # Remove the tab
         self.tab_widget.removeTab(index)
@@ -485,7 +487,7 @@ This tool will be implemented in a future update.""")
     def cleanup_all_tools(self):
         """Clean up all tool resources when the application is shutting down"""
         try:
-            print(f"Starting cleanup of all tools in content area...")
+            self.debug_logger.info(LogCategory.TOOL, "Starting cleanup of all tools in content area...")
             tool_count = 0
             
             # Clean up all tool tabs
@@ -493,19 +495,19 @@ This tool will be implemented in a future update.""")
                 widget = self.tab_widget.widget(i)
                 if widget and hasattr(widget, 'cleanup'):
                     try:
-                        print(f"Cleaning up tool tab {i}...")
+                        self.debug_logger.debug(LogCategory.TOOL, "Cleaning up tool tab", {"tab_index": i})
                         widget.cleanup()
                         tool_count += 1
                     except Exception as e:
-                        print(f"Warning: Error during tool cleanup: {e}")
+                        self.debug_logger.warning(LogCategory.TOOL, "Error during tool cleanup", {"error": str(e), "tab_index": i})
             
-            print(f"All tool resources cleaned up - processed {tool_count} tools")
+            self.debug_logger.info(LogCategory.TOOL, "All tool resources cleaned up", {"processed_tools": tool_count})
             
         except Exception as e:
-            print(f"Error during tool cleanup: {e}")
+            self.debug_logger.error(LogCategory.TOOL, f"Error during tool cleanup: {e}")
     
     def closeEvent(self, event):
         """Handle close event for the content area"""
-        print("Content area closeEvent triggered")
+        self.debug_logger.info(LogCategory.UI, "Content area closeEvent triggered")
         self.cleanup_all_tools()
         super().closeEvent(event)

@@ -5,6 +5,10 @@ Inspired by VS Code and other modern development environments
 
 import sys
 import os
+from application.debug_system import get_debug_logger, LogCategory
+ 
+# Module-level logger
+debug_logger = get_debug_logger()
 from .responsive_utils import get_responsive_manager
 
 
@@ -19,14 +23,14 @@ def initialize_qt_resources():
             
             if os.path.exists(qt_plugin_path):
                 os.environ['QT_PLUGIN_PATH'] = qt_plugin_path
-                print(f"✅ Qt plugin path set to: {qt_plugin_path}")
+                debug_logger.info(LogCategory.SYSTEM, "Qt plugin path set", {"qt_plugin_path": qt_plugin_path})
             
             # Set other Qt environment variables for stability
             os.environ.setdefault('QT_FONT_DPI', '96')
             os.environ.setdefault('QT_SCALE_FACTOR', '1')
             
         except Exception as e:
-            print(f"⚠️ Warning initializing Qt resources: {e}")
+            debug_logger.warning(LogCategory.SYSTEM, f"Warning initializing Qt resources: {e}")
 
 
 class ModernDarkTheme:

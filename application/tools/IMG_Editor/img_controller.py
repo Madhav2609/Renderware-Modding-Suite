@@ -19,6 +19,10 @@ from .core import (
     Import_Export
 )
 from .core.File_Operations import ArchiveManager
+from application.debug_system import get_debug_logger, LogCategory
+
+# Module-level debug logger
+debug_logger = get_debug_logger()
 
 
 class IMGWorkerThread(QThread):
@@ -415,7 +419,7 @@ class IMGWorkerThread(QThread):
                 exported_files.append(exported_path)
             except Exception as e:
                 failed_entries.append(entry)
-                print(f"Failed to export {entry.name}: {str(e)}")
+                debug_logger.error(LogCategory.TOOL, f"Failed to export {entry.name}: {str(e)}")
         
         if self._check_cancelled():
             return
@@ -652,17 +656,17 @@ class IMGController(QObject):
                 # Signals might already be disconnected
                 pass
             
-            print("IMGController cleanup completed")
+            debug_logger.info(LogCategory.TOOL, "IMGController cleanup completed")
             
         except Exception as e:
-            print(f"Error during IMGController cleanup: {e}")
+            debug_logger.error(LogCategory.TOOL, f"Error during IMGController cleanup: {e}")
     
     def __del__(self):
         """Destructor to ensure cleanup when the controller is destroyed"""
         try:
             self.cleanup()
         except Exception as e:
-            print(f"Error in IMGController destructor: {e}")
+            debug_logger.error(LogCategory.TOOL, f"Error in IMGController destructor: {e}")
     
     def is_operation_running(self):
         """Check if a heavy operation is currently running."""
@@ -752,7 +756,7 @@ class IMGController(QObject):
                         # Close the archive using the core function
                         File_Operations.close_archive(img_archive, self.archive_manager)
                 except Exception as e:
-                    print(f"Error closing archive {file_path}: {e}")
+                    debug_logger.error(LogCategory.FILE_IO, f"Error closing archive {file_path}: {e}")
             
             # Clear the archive manager
             self.archive_manager.close_all_archives()
@@ -763,11 +767,11 @@ class IMGController(QObject):
             # Emit signal that all archives are closed
             self.img_closed.emit("")  # Empty string indicates all closed
             
-            print(f"Successfully closed {closed_count} archive(s)")
+            debug_logger.info(LogCategory.FILE_IO, f"Successfully closed {closed_count} archive(s)")
             return True, f"Closed {closed_count} archive(s)"
             
         except Exception as e:
-            print(f"Error in close_all_archives: {e}")
+            debug_logger.error(LogCategory.FILE_IO, f"Error in close_all_archives: {e}")
             return False, f"Error closing archives: {str(e)}"
     
     def switch_active_archive(self, file_path):

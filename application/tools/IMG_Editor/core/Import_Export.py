@@ -8,6 +8,10 @@ import struct
 import math
 from pathlib import Path
 from .Core import IMGArchive, IMGEntry, SECTOR_SIZE, MAX_FILENAME_LENGTH
+from application.debug_system import get_debug_logger, LogCategory
+
+# Module-level logger
+debug_logger = get_debug_logger()
 
 class Import_Export:
     """Class containing methods for importing and exporting files to/from IMG archives."""
@@ -35,13 +39,13 @@ class Import_Export:
             if not entry_name:
                 entry_name = os.path.basename(file_path)
             
-            print(f"[DEBUG] Importing file: {file_path} as {entry_name}")
+            debug_logger.debug(LogCategory.FILE_IO, "Importing file", {"file_path": file_path, "entry_name": entry_name})
             
             # Read file data
             with open(file_path, 'rb') as f:
                 file_data = f.read()
             
-            print(f"[DEBUG] Read {len(file_data)} bytes from {file_path}")
+            debug_logger.debug(LogCategory.FILE_IO, "Read file bytes", {"file_path": file_path, "bytes": len(file_data)})
             
             # Use the add_entry method from IMGArchive
             success = img_archive.add_entry(entry_name, file_data)
@@ -50,19 +54,17 @@ class Import_Export:
                 # Find and return the newly added/updated entry
                 entry = img_archive.get_entry_by_name(entry_name)
                 if entry:
-                    print(f"[DEBUG] Successfully imported {entry_name}")
+                    debug_logger.info(LogCategory.TOOL, "Successfully imported entry", {"entry_name": entry_name})
                     return entry
                 else:
-                    print(f"[ERROR] Entry was added but could not be retrieved: {entry_name}")
+                    debug_logger.error(LogCategory.FILE_IO, "Entry added but could not be retrieved", {"entry_name": entry_name})
                     return None
             else:
-                print(f"[ERROR] Failed to add entry to archive: {entry_name}")
+                debug_logger.error(LogCategory.FILE_IO, "Failed to add entry to archive", {"entry_name": entry_name})
                 return None
                 
         except Exception as e:
-            print(f"[ERROR] Failed to import file {file_path}: {e}")
-            import traceback
-            traceback.print_exc()
+            debug_logger.log_exception(LogCategory.FILE_IO, f"Failed to import file {file_path}", e)
             return None
 
 
@@ -104,20 +106,20 @@ class Import_Export:
             'missing_textures': []
         }
         
-        print(f"[DEBUG] Starting IDE import from: {ide_file_path}")
+        debug_logger.info(LogCategory.TOOL, "Starting IDE import", {"ide_file_path": ide_file_path})
         
         # Parse IDE file
         models, textures = Import_Export._parse_ide_file(ide_file_path, parsed_info)
         
         if not models and not textures:
-            print("[WARNING] No models or textures found in IDE file")
+            debug_logger.warning(LogCategory.TOOL, "No models or textures found in IDE file", {"ide_file_path": ide_file_path})
             return imported_entries, failed_files, parsed_info
         
         # If models_directory not provided, we'll need to ask for it
         # For now, let's assume it's provided or use the IDE file's directory
         if models_directory is None:
             models_directory = os.path.dirname(ide_file_path)
-            print(f"[INFO] Using IDE file directory as models directory: {models_directory}")
+            debug_logger.info(LogCategory.FILE_IO, "Using IDE file directory as models directory", {"models_directory": models_directory})
         
         # Find and import DFF files
         for model_name in models:
@@ -128,16 +130,16 @@ class Import_Export:
                     entry = Import_Export.import_file(img_archive, dff_path)
                     if entry:
                         imported_entries.append(entry)
-                        print(f"[SUCCESS] Imported model: {model_name}.dff")
+                        debug_logger.info(LogCategory.TOOL, "Imported model", {"model": f"{model_name}.dff"})
                     else:
                         failed_files.append(dff_path)
-                        print(f"[ERROR] Failed to import model: {dff_path}")
+                        debug_logger.error(LogCategory.FILE_IO, "Failed to import model", {"path": dff_path})
                 except Exception as e:
                     failed_files.append(dff_path)
-                    print(f"[ERROR] Exception importing model {dff_path}: {str(e)}")
+                    debug_logger.log_exception(LogCategory.FILE_IO, f"Exception importing model {dff_path}", e)
             else:
                 parsed_info['missing_models'].append(model_name)
-                print(f"[WARNING] Model file not found: {model_name}.dff")
+                debug_logger.warning(LogCategory.FILE_IO, "Model file not found", {"model": f"{model_name}.dff"})
         
         # Find and import TXD files
         for texture_name in textures:
@@ -148,21 +150,25 @@ class Import_Export:
                     entry = Import_Export.import_file(img_archive, txd_path)
                     if entry:
                         imported_entries.append(entry)
-                        print(f"[SUCCESS] Imported texture: {texture_name}.txd")
+                        debug_logger.info(LogCategory.TOOL, "Imported texture", {"texture": f"{texture_name}.txd"})
                     else:
                         failed_files.append(txd_path)
-                        print(f"[ERROR] Failed to import texture: {txd_path}")
+                        debug_logger.error(LogCategory.FILE_IO, "Failed to import texture", {"path": txd_path})
                 except Exception as e:
                     failed_files.append(txd_path)
-                    print(f"[ERROR] Exception importing texture {txd_path}: {str(e)}")
+                    debug_logger.log_exception(LogCategory.FILE_IO, f"Exception importing texture {txd_path}", e)
             else:
                 parsed_info['missing_textures'].append(texture_name)
-                print(f"[WARNING] Texture file not found: {texture_name}.txd")
+                debug_logger.warning(LogCategory.FILE_IO, "Texture file not found", {"texture": f"{texture_name}.txd"})
         
-        print(f"[DEBUG] IDE import completed.")
-        print(f"[INFO] Models found: {len(parsed_info['found_models'])}, missing: {len(parsed_info['missing_models'])}")
-        print(f"[INFO] Textures found: {len(parsed_info['found_textures'])}, missing: {len(parsed_info['missing_textures'])}")
-        print(f"[INFO] Total imported: {len(imported_entries)}, failed: {len(failed_files)}")
+        debug_logger.info(LogCategory.TOOL, "IDE import completed", {
+            "models_found": len(parsed_info['found_models']),
+            "models_missing": len(parsed_info['missing_models']),
+            "textures_found": len(parsed_info['found_textures']),
+            "textures_missing": len(parsed_info['missing_textures']),
+            "total_imported": len(imported_entries),
+            "total_failed": len(failed_files),
+        })
         
         return imported_entries, failed_files, parsed_info
     
@@ -194,14 +200,14 @@ class Import_Export:
                     # Check for section headers
                     if line.lower() == 'objs':
                         current_section = 'objs'
-                        print(f"[DEBUG] Found objs section at line {line_num}")
+                        debug_logger.debug(LogCategory.TOOL, "Found objs section", {"line": line_num})
                         continue
                     elif line.lower() == 'tobj':
                         current_section = 'tobj'
-                        print(f"[DEBUG] Found tobj section at line {line_num}")
+                        debug_logger.debug(LogCategory.TOOL, "Found tobj section", {"line": line_num})
                         continue
                     elif line.lower() == 'end':
-                        print(f"[DEBUG] End of section at line {line_num}")
+                        debug_logger.debug(LogCategory.TOOL, "End of section", {"line": line_num})
                         current_section = None
                         continue
                     
@@ -227,16 +233,16 @@ class Import_Export:
                                 else:
                                     parsed_info['tobj_count'] += 1
                                 
-                                print(f"[DEBUG] {current_section} entry: Model='{model_name}', Texture='{texture_name}'")
+                                debug_logger.trace(LogCategory.TOOL, f"{current_section} entry", {"model": model_name, "texture": texture_name})
                         except Exception as e:
-                            print(f"[WARNING] Failed to parse line {line_num}: {line} - {str(e)}")
+                            debug_logger.warning(LogCategory.TOOL, "Failed to parse IDE line", {"line_num": line_num, "line": line, "error": str(e)})
                             continue
         
         except Exception as e:
-            print(f"[ERROR] Failed to read IDE file: {str(e)}")
+            debug_logger.log_exception(LogCategory.FILE_IO, "Failed to read IDE file", e)
             raise
         
-        print(f"[INFO] Parsed IDE file: {len(models)} unique models, {len(textures)} unique textures")
+        debug_logger.info(LogCategory.TOOL, "Parsed IDE file", {"unique_models": len(models), "unique_textures": len(textures)})
         return models, textures
     
     @staticmethod
@@ -291,19 +297,18 @@ class Import_Export:
         imported_entries = []
         failed_files = []
         
-        print(f"[DEBUG] Starting folder import from: {folder_path}")
-        print(f"[DEBUG] Recursive: {recursive}, Filter extensions: {filter_extensions}")
+        debug_logger.info(LogCategory.TOOL, "Starting folder import", {"folder_path": folder_path, "recursive": recursive, "filter_extensions": filter_extensions})
         
         # Walk through directory
         for root, dirs, files in os.walk(folder_path):
-            print(f"[DEBUG] Processing directory: {root}")
+            debug_logger.debug(LogCategory.FILE_IO, "Processing directory", {"root": root})
             
             for file in files:
                 # Check extension if filter is provided
                 if filter_extensions:
                     ext = os.path.splitext(file)[1].lower().lstrip('.')
                     if ext not in [e.lower().lstrip('.') for e in filter_extensions]:
-                        print(f"[DEBUG] Skipping {file} - extension {ext} not in filter")
+                        debug_logger.debug(LogCategory.FILE_IO, "Skipping file due to extension filter", {"file": file, "ext": ext})
                         continue
                 
                 file_path = os.path.join(root, file)
@@ -318,23 +323,23 @@ class Import_Export:
                     entry_name = file
                 
                 try:
-                    print(f"[DEBUG] Attempting to import: {file_path} as {entry_name}")
+                    debug_logger.debug(LogCategory.FILE_IO, "Attempting to import file", {"file_path": file_path, "entry_name": entry_name})
                     entry = Import_Export.import_file(img_archive, file_path, entry_name)
                     if entry:
                         imported_entries.append(entry)
-                        print(f"[DEBUG] Successfully imported: {entry_name}")
+                        debug_logger.info(LogCategory.TOOL, "Successfully imported file", {"entry_name": entry_name})
                     else:
                         failed_files.append(file_path)
-                        print(f"[ERROR] Failed to import: {file_path}")
+                        debug_logger.error(LogCategory.FILE_IO, "Failed to import file", {"file_path": file_path})
                 except Exception as e:
                     failed_files.append(file_path)
-                    print(f"[ERROR] Exception importing {file_path}: {str(e)}")
+                    debug_logger.log_exception(LogCategory.FILE_IO, f"Exception importing {file_path}", e)
             
             # If not recursive, don't process subdirectories
             if not recursive:
                 break
         
-        print(f"[DEBUG] Import completed. Success: {len(imported_entries)}, Failed: {len(failed_files)}")
+        debug_logger.info(LogCategory.TOOL, "Folder import completed", {"success_count": len(imported_entries), "failed_count": len(failed_files)})
         return imported_entries, failed_files
     
     @staticmethod
@@ -363,7 +368,7 @@ class Import_Export:
         imported_entries = []
         failed_files = []
         
-        print(f"[DEBUG] Starting batch import of {len(file_paths)} files")
+        debug_logger.info(LogCategory.TOOL, "Starting batch import", {"file_count": len(file_paths)})
         
         for i, file_path in enumerate(file_paths):
             try:
@@ -373,21 +378,21 @@ class Import_Export:
                 else:
                     entry_name = os.path.basename(file_path)
                 
-                print(f"[DEBUG] Importing {i+1}/{len(file_paths)}: {file_path} as {entry_name}")
+                debug_logger.debug(LogCategory.FILE_IO, "Importing file in batch", {"index": i+1, "total": len(file_paths), "file_path": file_path, "entry_name": entry_name})
                 
                 entry = Import_Export.import_file(img_archive, file_path, entry_name)
                 if entry:
                     imported_entries.append(entry)
-                    print(f"[DEBUG] Successfully imported {i+1}/{len(file_paths)}: {entry_name}")
+                    debug_logger.info(LogCategory.TOOL, "Successfully imported in batch", {"index": i+1, "total": len(file_paths), "entry_name": entry_name})
                 else:
                     failed_files.append(file_path)
-                    print(f"[ERROR] Failed to import {i+1}/{len(file_paths)}: {file_path}")
+                    debug_logger.error(LogCategory.FILE_IO, "Failed to import in batch", {"index": i+1, "total": len(file_paths), "file_path": file_path})
                     
             except Exception as e:
                 failed_files.append(file_path)
-                print(f"[ERROR] Exception importing {file_path}: {str(e)}")
+                debug_logger.log_exception(LogCategory.FILE_IO, f"Exception importing {file_path}", e)
         
-        print(f"[DEBUG] Batch import completed. Success: {len(imported_entries)}, Failed: {len(failed_files)}")
+        debug_logger.info(LogCategory.TOOL, "Batch import completed", {"success_count": len(imported_entries), "failed_count": len(failed_files)})
         return imported_entries, failed_files
     
     @staticmethod
@@ -414,12 +419,12 @@ class Import_Export:
         
         # Check if entry has in-memory data (new/modified entries)
         if hasattr(entry, 'is_new_entry') and entry.is_new_entry and entry.data:
-            print(f"[DEBUG] Exporting new/modified entry from memory: {entry.name}")
+            debug_logger.debug(LogCategory.FILE_IO, "Exporting new/modified entry from memory", {"entry_name": entry.name})
             data_to_write = entry.data
         else:
             # Read entry data from file if not already loaded
             if not entry.data:
-                print(f"[DEBUG] Reading entry data from file: {entry.name}")
+                debug_logger.debug(LogCategory.FILE_IO, "Reading entry data from file", {"entry_name": entry.name})
                 with open(img_archive.file_path, 'rb') as f:
                     f.seek(entry.actual_offset)
                     data_to_write = f.read(entry.actual_size)
@@ -430,7 +435,7 @@ class Import_Export:
         with open(output_path, 'wb') as f:
             f.write(data_to_write)
         
-        print(f"[DEBUG] Exported {entry.name} to {output_path} ({len(data_to_write)} bytes)")
+        debug_logger.info(LogCategory.FILE_IO, "Exported entry", {"entry_name": entry.name, "output_path": output_path, "bytes": len(data_to_write)})
         return output_path
     
     @staticmethod
@@ -453,8 +458,7 @@ class Import_Export:
         exported_files = []
         failed_entries = []
         
-        print(f"[DEBUG] Starting export all from {img_archive.file_path}")
-        print(f"[DEBUG] Filter type: {filter_type}, Total entries: {len(img_archive.entries)}")
+        debug_logger.info(LogCategory.TOOL, "Starting export all", {"archive_path": img_archive.file_path, "filter_type": filter_type, "total_entries": len(img_archive.entries)})
         
         for entry in img_archive.entries:
             # Apply type filter if provided
@@ -466,9 +470,9 @@ class Import_Export:
                 exported_files.append(output_path)
             except Exception as e:
                 failed_entries.append(entry)
-                print(f"[ERROR] Error exporting {entry.name}: {str(e)}")
+                debug_logger.log_exception(LogCategory.FILE_IO, f"Error exporting {entry.name}", e)
         
-        print(f"[DEBUG] Export completed. Success: {len(exported_files)}, Failed: {len(failed_entries)}")
+        debug_logger.info(LogCategory.TOOL, "Export all completed", {"success_count": len(exported_files), "failed_count": len(failed_entries)})
         return exported_files, failed_entries
     
     @staticmethod
@@ -490,7 +494,7 @@ class Import_Export:
         for t in types:
             results[t] = ([], [])  # (exported_files, failed_entries)
         
-        print(f"[DEBUG] Starting export by type: {types}")
+        debug_logger.info(LogCategory.TOOL, "Starting export by type", {"types": types})
         
         for entry in img_archive.entries:
             # Check if entry type is in requested types
@@ -504,11 +508,11 @@ class Import_Export:
                     results[entry.type][0].append(output_path)  # Add to exported_files
                 except Exception as e:
                     results[entry.type][1].append(entry)  # Add to failed_entries
-                    print(f"[ERROR] Error exporting {entry.name}: {str(e)}")
+                    debug_logger.log_exception(LogCategory.FILE_IO, f"Error exporting {entry.name}", e)
         
         # Print summary
         for file_type, (exported, failed) in results.items():
-            print(f"[DEBUG] {file_type}: {len(exported)} exported, {len(failed)} failed")
+            debug_logger.info(LogCategory.TOOL, "Export by type summary", {"type": file_type, "exported": len(exported), "failed": len(failed)})
         
         return results
     

@@ -20,6 +20,10 @@ if str(app_root) not in sys.path:
     sys.path.insert(0, str(app_root))
 
 from application.common.rw_versions import parse_rw_version, get_model_format_version, is_valid_rw_version, detect_rw_file_format
+from application.debug_system import get_debug_logger, LogCategory
+
+# Module-level debug logger
+debug_logger = get_debug_logger()
 
 # Constants
 SECTOR_SIZE = 2048
@@ -193,7 +197,7 @@ class IMGArchive:
             self.modified = False
             
         except Exception as e:
-            print(f"Error during IMGArchive cleanup: {e}")
+            debug_logger.log_exception(LogCategory.FILE_IO, "Error during IMGArchive cleanup", e)
     
     def get_entry_by_name(self, name):
         """Finds an entry by its name (case-insensitive)."""
@@ -290,7 +294,7 @@ class IMGArchive:
                         entry._rw_version_name = f"Error: {str(e)}"
                         entry._format_info = (entry.type, "Error")
         except Exception as e:
-            print(f"Error analyzing archive: {e}")
+            debug_logger.log_exception(LogCategory.FILE_IO, "Error analyzing archive", e)
     
     def get_rw_version_summary(self):
         """
@@ -397,10 +401,10 @@ class IMGArchive:
                 if not (hasattr(entry, 'is_new_entry') and entry.is_new_entry):
                     # This was an original entry from the file, so track it as deleted
                     self.deleted_entries.append(entry)
-                    print(f"[DEBUG] Tracking deleted original entry: {entry.name}")
+                    debug_logger.debug(LogCategory.TOOL, "Tracking deleted original entry", {"entry": entry.name})
                 else:
                     # This was a new entry that was never saved, so just remove it
-                    print(f"[DEBUG] Removing new entry (not saved): {entry.name}")
+                    debug_logger.debug(LogCategory.TOOL, "Removing new entry (not saved)", {"entry": entry.name})
                 
                 self.entries.remove(entry)
                 success_count += 1
@@ -467,38 +471,38 @@ class IMGArchive:
             
             # Validate inputs
             if not filename or not data:
-                print(f"[ERROR] Invalid filename or data provided")
+                debug_logger.error(LogCategory.FILE_IO, "Invalid filename or data provided for add_entry")
                 return False
             
             # Ensure filename length is valid
             if len(filename.encode('ascii', errors='replace')) >= MAX_FILENAME_LENGTH:
                 filename = filename[:MAX_FILENAME_LENGTH-1]  # Leave room for null terminator
-                print(f"[DEBUG] Filename truncated to: {filename}")
+                debug_logger.debug(LogCategory.TOOL, "Filename truncated", {"new_filename": filename})
             
             # Check for duplicate entries (replace if exists)
             existing_entry = None
             for i, entry in enumerate(self.entries):
                 if entry.name.lower() == filename.lower():
                     existing_entry = entry
-                    print(f"[DEBUG] Replacing existing entry at index {i}: {filename}")
+                    debug_logger.debug(LogCategory.TOOL, "Replacing existing entry", {"index": i, "filename": filename})
                     break
             
             if existing_entry:
                 # Replace existing entry data
-                print(f"[DEBUG] Updating existing entry data...")
+                debug_logger.debug(LogCategory.TOOL, "Updating existing entry data")
                 existing_entry.data = data
                 existing_entry.size = math.ceil(len(data) / SECTOR_SIZE)
                 existing_entry.streaming_size = existing_entry.size if self.version == 'V2' else 0
                 
                 # Detect file type and RW version from data
                 existing_entry.detect_rw_version(data)
-                print(f"[DEBUG] Existing entry updated: size={existing_entry.size} sectors, data_length={len(data)} bytes")
+                debug_logger.debug(LogCategory.TOOL, "Existing entry updated", {"size_sectors": existing_entry.size, "data_length": len(data)})
                 
                 # Mark entry as new/modified for future save operations
                 existing_entry.is_new_entry = True
             else:
                 # Create brand new entry
-                print(f"[DEBUG] Creating new IMGEntry...")
+                debug_logger.debug(LogCategory.TOOL, "Creating new IMGEntry")
                 new_entry = IMGEntry()
                 new_entry.name = filename
                 new_entry.data = data
@@ -507,7 +511,7 @@ class IMGArchive:
                 
                 # Calculate proper offset for new entry
                 new_entry.offset = self.calculate_next_offset()
-                print(f"[DEBUG] Calculated offset for new entry: 0x{new_entry.offset:08X}")
+                debug_logger.debug(LogCategory.TOOL, "Calculated offset for new entry", {"offset_sectors": new_entry.offset, "offset_hex": f"0x{new_entry.offset:08X}"})
                 
                 # Detect file type and RW version from data
                 new_entry.detect_rw_version(data)
@@ -517,17 +521,15 @@ class IMGArchive:
                 
                 # Add to entries list
                 self.entries.append(new_entry)
-                print(f"[DEBUG] Entry added successfully: {filename}")
-                print(f"[DEBUG] Total entries now: {len(self.entries)}")
+                debug_logger.info(LogCategory.TOOL, "Entry added successfully", {"filename": filename})
+                debug_logger.debug(LogCategory.TOOL, "Total entries updated", {"total_entries": len(self.entries)})
             
             # Mark archive as modified
             self.modified = True
             return True
             
         except Exception as e:
-            print(f"[ERROR] Failed to add entry {filename}: {e}")
-            import traceback
-            traceback.print_exc()
+            debug_logger.log_exception(LogCategory.FILE_IO, f"Failed to add entry {filename}", e)
             return False
     
     def calculate_next_offset(self):
@@ -564,7 +566,7 @@ class IMGArchive:
             return max_end  # Already in sectors
             
         except Exception as e:
-            print(f"[ERROR] Failed to calculate next offset: {e}")
+            debug_logger.log_exception(LogCategory.TOOL, "Failed to calculate next offset", e)
             return 0
     
     def has_new_or_modified_entries(self):
@@ -647,10 +649,10 @@ class IMGArchive:
                 # Move entry back to the main entries list
                 restored_entry = self.deleted_entries.pop(i)
                 self.entries.append(restored_entry)
-                print(f"[DEBUG] Restored deleted entry: {entry_name}")
+                debug_logger.info(LogCategory.TOOL, "Restored deleted entry", {"entry": entry_name})
                 return True
         
-        print(f"[DEBUG] Could not find deleted entry to restore: {entry_name}")
+        debug_logger.warning(LogCategory.TOOL, "Could not find deleted entry to restore", {"entry": entry_name})
         return False
     
     def restore_all_deleted_entries(self):
@@ -663,7 +665,7 @@ class IMGArchive:
         count = len(self.deleted_entries)
         self.entries.extend(self.deleted_entries)
         self.deleted_entries.clear()
-        print(f"[DEBUG] Restored {count} deleted entries")
+        debug_logger.info(LogCategory.TOOL, "Restored deleted entries", {"count": count})
         return count
     
     def get_modification_summary(self):

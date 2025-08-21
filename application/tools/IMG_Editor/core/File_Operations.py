@@ -6,7 +6,19 @@ This module handles operations like opening, creating, saving, and closing IMG a
 import os
 import struct
 from pathlib import Path
+import sys
+from pathlib import Path as _Path
+
+# Add the application root to sys.path for imports (align with Core.py)
+app_root = _Path(__file__).parent.parent.parent.parent
+if str(app_root) not in sys.path:
+    sys.path.insert(0, str(app_root))
+
+from application.debug_system import get_debug_logger, LogCategory
 from .Core import IMGArchive, IMGEntry, SECTOR_SIZE, V2_SIGNATURE, MAX_FILENAME_LENGTH
+
+# Module-level debug logger
+debug_logger = get_debug_logger()
 
 class ArchiveManager:
     """Manager class for handling multiple open IMG archives."""
@@ -68,11 +80,11 @@ class ArchiveManager:
                     else:
                         self.active_archive = None
                 
-                print(f"Successfully closed archive: {file_path}")
+                debug_logger.info(LogCategory.FILE_IO, "Successfully closed archive", {"file_path": file_path})
                 return True
                 
             except Exception as e:
-                print(f"Error closing archive {file_path}: {e}")
+                debug_logger.log_exception(LogCategory.FILE_IO, f"Error closing archive {file_path}", e)
                 # Force remove even if cleanup failed
                 if file_path in self.open_archives:
                     del self.open_archives[file_path]
@@ -101,16 +113,16 @@ class ArchiveManager:
                             img_archive.entries = []
                             img_archive.modified = False
                 except Exception as e:
-                    print(f"Error cleaning up archive {file_path}: {e}")
+                    debug_logger.log_exception(LogCategory.FILE_IO, f"Error cleaning up archive {file_path}", e)
             
             # Clear all references
             self.open_archives.clear()
             self.active_archive = None
             
-            print(f"Successfully closed {len(archive_paths)} archive(s)")
+            debug_logger.info(LogCategory.FILE_IO, "Closed archives", {"count": len(archive_paths)})
             
         except Exception as e:
-            print(f"Error in ArchiveManager.close_all_archives: {e}")
+            debug_logger.log_exception(LogCategory.FILE_IO, "Error in ArchiveManager.close_all_archives", e)
             # Force clear even if there was an error
             self.open_archives.clear()
             self.active_archive = None
@@ -302,5 +314,5 @@ class File_Operations:
             return True
             
         except Exception as e:
-            print(f"Error in close_archive: {e}")
+            debug_logger.log_exception(LogCategory.FILE_IO, "Error in close_archive", e)
             return False

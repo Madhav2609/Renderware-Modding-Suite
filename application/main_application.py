@@ -18,6 +18,7 @@ from application.tools_panel import ToolsPanel
 from application.content_area import ContentArea
 from application.status_bar import StatusBarWidget
 from application.responsive_utils import get_responsive_manager
+from application.debug_system import get_debug_logger, LogLevel, LogCategory, debug_function
 
 
 class RenderwareModdingSuite(QMainWindow):
@@ -25,24 +26,43 @@ class RenderwareModdingSuite(QMainWindow):
     
     def __init__(self):
         super().__init__()
+        
+        # Initialize debug logger
+        self.debug_logger = get_debug_logger()
+        self.debug_logger.info(LogCategory.SYSTEM, "Initializing Renderware Modding Suite")
+        
+        # Start application setup timer
+        setup_timer = self.debug_logger.start_performance_timer("Application Initialization")
+        
         self.setup_ui()
         self.setup_connections()
         
+        # End setup timer
+        self.debug_logger.end_performance_timer(setup_timer)
         
         # Memory monitoring timer
         self.memory_timer = QTimer()
         self.memory_timer.timeout.connect(self.update_memory_usage)
         self.memory_timer.start(5000)  # Update every 5 seconds
+        
+        self.debug_logger.info(LogCategory.SYSTEM, "Application initialization completed")
     
     
     def setup_ui(self):
         """Setup the user interface with responsive sizing"""
+        self.debug_logger.debug(LogCategory.UI, "Setting up main UI")
+        
         rm = get_responsive_manager()
         
         # Set responsive window size and title
         window_size = rm.get_window_size()
         self.setWindowTitle("Renderware Modding Suite - GTA 3D Era Tool")
         self.setGeometry(100, 100, window_size[0], window_size[1])
+        
+        self.debug_logger.info(LogCategory.UI, "Window configured", {
+            "size": f"{window_size[0]}x{window_size[1]}",
+            "breakpoint": rm.breakpoint
+        })
         
         # Print debug info for development
         rm.print_debug_info()
@@ -66,14 +86,17 @@ class RenderwareModdingSuite(QMainWindow):
         panel_min, panel_max = rm.get_panel_width()
         
         # Left panel (File Explorer)
+        self.debug_logger.debug(LogCategory.UI, "Creating File Explorer panel")
         self.file_explorer = FileExplorer()
         self.file_explorer.setMaximumWidth(panel_max)
         self.file_explorer.setMinimumWidth(panel_min)
         
         # Center area (Content)
+        self.debug_logger.debug(LogCategory.UI, "Creating Content Area")
         self.content_area = ContentArea()
         
         # Right panel (Tools)
+        self.debug_logger.debug(LogCategory.UI, "Creating Tools panel")
         self.tools_panel = ToolsPanel()
         self.tools_panel.setMaximumWidth(panel_max)
         self.tools_panel.setMinimumWidth(panel_min)
@@ -127,14 +150,14 @@ class RenderwareModdingSuite(QMainWindow):
                 icon = QIcon(icon_path)
                 if not icon.isNull():
                     self.setWindowIcon(icon)
-                    print(f"✅ Application icon loaded from: {icon_path}")
+                    self.debug_logger.info(LogCategory.UI, f"Application icon loaded", {"icon_path": icon_path})
                 else:
-                    print(f"⚠️ Icon file found but couldn't be loaded: {icon_path}")
+                    self.debug_logger.warning(LogCategory.UI, "Icon file found but couldn't be loaded", {"icon_path": icon_path})
             else:
-                print("⚠️ Icon file not found in any expected location")
+                self.debug_logger.warning(LogCategory.UI, "Icon file not found in any expected location")
                 
         except Exception as e:
-            print(f"⚠️ Error setting window icon: {e}")
+            self.debug_logger.error(LogCategory.UI, f"Error setting window icon: {e}")
     
     def create_menu_bar(self):
         """Create application menu bar"""
@@ -226,6 +249,10 @@ class RenderwareModdingSuite(QMainWindow):
     
     def load_file(self, file_path):
         """Load file in content area"""
+        self.debug_logger.log_user_action("Load File", {"file_path": file_path})
+        
+        load_timer = self.debug_logger.start_performance_timer(f"Load File: {os.path.basename(file_path)}")
+        
         self.status_bar.set_status(f"Loading {os.path.basename(file_path)}...")
         self.status_bar.set_file_info(file_path)
         
@@ -233,24 +260,42 @@ class RenderwareModdingSuite(QMainWindow):
             # Load file in content area
             self.content_area.load_file(file_path)
             self.status_bar.show_success(f"Loaded {os.path.basename(file_path)}")
+            
+            self.debug_logger.log_file_operation("load", file_path, True, {
+                "file_size": os.path.getsize(file_path) if os.path.exists(file_path) else 0
+            })
                 
         except Exception as e:
+            self.debug_logger.log_exception(LogCategory.FILE_IO, f"Failed to load file: {file_path}", e)
             self.status_bar.show_error(f"Error loading file: {str(e)}")
             
             # Still try to show file in UI
             self.content_area.load_file(file_path)
+        
+        finally:
+            self.debug_logger.end_performance_timer(load_timer)
     
     def handle_tool_request(self, tool_name, params):
         """Handle tool request from tools panel"""
+        self.debug_logger.log_user_action("Open Tool", {"tool_name": tool_name, "params": params})
+        
+        tool_timer = self.debug_logger.start_performance_timer(f"Open Tool: {tool_name}")
+        
         self.status_bar.set_status(f"Opening {tool_name.replace('_', ' ').title()}...")
         
         try:
             # Show tool interface
             self.content_area.show_tool_interface(tool_name, params)
             self.status_bar.show_success(f"Opened {tool_name.replace('_', ' ').title()}")
+            
+            self.debug_logger.log_tool_operation(tool_name, "opened", params)
         
         except Exception as e:
+            self.debug_logger.log_exception(LogCategory.TOOL, f"Failed to open tool: {tool_name}", e)
             self.status_bar.show_error(f"Error opening tool: {str(e)}")
+        
+        finally:
+            self.debug_logger.end_performance_timer(tool_timer)
     
     def switch_to_next_tab(self):
         """Switch to the next tab"""
@@ -302,6 +347,9 @@ class RenderwareModdingSuite(QMainWindow):
             memory_info = process.memory_info()
             memory_mb = memory_info.rss / 1024 / 1024
             
+            # Log memory usage to debug system
+            self.debug_logger.log_memory_usage("Main Application", memory_mb)
+            
             # Update status bar with memory usage - pass the float value directly
             if hasattr(self, 'status_bar'):
                 self.status_bar.set_memory_usage(memory_mb)
@@ -310,11 +358,11 @@ class RenderwareModdingSuite(QMainWindow):
             # psutil not available, skip memory monitoring
             pass
         except Exception as e:
-            print(f"Error updating memory usage: {e}")
+            self.debug_logger.error(LogCategory.MEMORY, f"Error updating memory usage: {e}")
     def closeEvent(self, event):
         """Handle application close event to ensure proper cleanup"""
         try:
-            print("Application shutting down - cleaning up resources...")
+            self.debug_logger.info(LogCategory.SYSTEM, "Application shutting down - cleaning up resources")
             
             # Clean up content area (which includes all tool tabs)
             if hasattr(self, 'content_area'):
@@ -324,10 +372,10 @@ class RenderwareModdingSuite(QMainWindow):
             if hasattr(self, 'memory_timer'):
                 self.memory_timer.stop()
             
-            print("Application cleanup completed")
+            self.debug_logger.info(LogCategory.SYSTEM, "Application cleanup completed")
             
         except Exception as e:
-            print(f"Error during application cleanup: {e}")
+            self.debug_logger.log_exception(LogCategory.SYSTEM, "Error during application cleanup", e)
         
         # Accept the close event
         event.accept()
@@ -335,30 +383,34 @@ class RenderwareModdingSuite(QMainWindow):
     def aboutToQuit(self):
         """Handle application quit event"""
         try:
-            print("Application about to quit - final cleanup...")
+            self.debug_logger.info(LogCategory.SYSTEM, "Application about to quit - final cleanup...")
             
             # Force cleanup of all resources
             if hasattr(self, 'content_area'):
                 self.content_area.cleanup_all_tools()
             
-            print("Final cleanup completed")
+            self.debug_logger.info(LogCategory.SYSTEM, "Final cleanup completed")
             
         except Exception as e:
-            print(f"Error during final cleanup: {e}")
+            self.debug_logger.error(LogCategory.SYSTEM, f"Error during final cleanup: {e}")
     
     def __del__(self):
         """Destructor to ensure cleanup when the application is destroyed"""
         try:
-            print("Main application destructor called - cleaning up...")
+            # Using logger may not always be safe during interpreter shutdown, but attempt it
+            if hasattr(self, 'debug_logger'):
+                self.debug_logger.info(LogCategory.SYSTEM, "Main application destructor called - cleaning up...")
             
             # Force cleanup of all resources
             if hasattr(self, 'content_area'):
                 self.content_area.cleanup_all_tools()
             
-            print("Main application cleanup completed")
+            if hasattr(self, 'debug_logger'):
+                self.debug_logger.info(LogCategory.SYSTEM, "Main application cleanup completed")
             
         except Exception as e:
-            print(f"Error in main application destructor: {e}")
+            if hasattr(self, 'debug_logger'):
+                self.debug_logger.error(LogCategory.SYSTEM, f"Error in main application destructor: {e}")
     
     def zoom_in(self):
         """Increase UI scale"""
@@ -397,13 +449,17 @@ class RenderwareModdingSuite(QMainWindow):
             new_font = QFont("Fira Code", font_config['body']['size'])
             QApplication.instance().setFont(new_font)
             
-            print(f"🎨 UI refreshed with scale factor: {rm.scale_factor:.2f}")
+            self.debug_logger.info(LogCategory.UI, "UI refreshed", {"scale_factor": f"{rm.scale_factor:.2f}"})
         except Exception as e:
-            print(f"⚠️ Error refreshing UI scaling: {e}")
+            self.debug_logger.error(LogCategory.UI, f"Error refreshing UI scaling: {e}")
 
 
 def main():
     """Main application entry point"""
+    # Initialize debug logger early
+    debug_logger = get_debug_logger()
+    debug_logger.info(LogCategory.SYSTEM, "Starting Renderware Modding Suite")
+    
     # Set critical Qt attributes before creating QApplication to force dark theme
     os.environ['QT_FONT_DPI'] = '96'  # Force consistent DPI
     os.environ['QT_SCALE_FACTOR'] = '1'  # Prevent auto-scaling issues
@@ -413,17 +469,21 @@ def main():
     os.environ['QT_STYLE_OVERRIDE'] = 'Fusion'  # Use Fusion as base style
     os.environ['QT_AUTO_SCREEN_SCALE_FACTOR'] = '0'  # Disable auto-scaling
     
+    debug_logger.debug(LogCategory.SYSTEM, "Qt environment variables configured")
+    
     # Additional environment variables to prevent system theme interference
     os.environ.pop('QT_QPA_PLATFORMTHEME', None)  # Remove any existing platform theme
     os.environ.pop('QT_QUICK_CONTROLS_STYLE', None)  # Remove quick controls style
     os.environ.pop('QT_QUICK_CONTROLS_MATERIAL_THEME', None)  # Remove material theme
     
     app = QApplication(sys.argv)
+    debug_logger.debug(LogCategory.SYSTEM, "QApplication created")
     
     # Set application properties
     app.setApplicationName("Renderware Modding Suite")
     app.setApplicationVersion("1.0")
     app.setOrganizationName("GTA Modding Community")
+    debug_logger.info(LogCategory.SYSTEM, "Application properties set")
     
     # Set application icon globally
     try:
@@ -439,10 +499,10 @@ def main():
                 app_icon = QIcon(path)
                 if not app_icon.isNull():
                     app.setWindowIcon(app_icon)
-                    print(f"✅ Global application icon set from: {path}")
+                    debug_logger.info(LogCategory.UI, "Global application icon set", {"icon_path": path})
                     break
     except Exception as e:
-        print(f"⚠️ Error setting global application icon: {e}")
+        debug_logger.error(LogCategory.UI, f"Error setting global application icon: {e}")
     
     # Apply modern dark theme
     theme = ModernDarkTheme()
@@ -450,7 +510,7 @@ def main():
     
     # Force dark palette to override any system theme interference
     theme.apply_dark_palette(app)
-    print("✅ Dark theme applied successfully")
+    debug_logger.info(LogCategory.UI, "Dark theme applied successfully")
     
     # Set responsive font with fallbacks
     try:
@@ -462,15 +522,15 @@ def main():
             professional_font = QFont(font_family, font_config['body']['size'])
             if professional_font.exactMatch():
                 app.setFont(professional_font)
-                print(f"✅ Font set to: {font_family}")
+                debug_logger.info(LogCategory.UI, "Font set", {"font_family": font_family})
                 break
         else:
             professional_font = QFont("monospace", font_config['body']['size'])
             app.setFont(professional_font)
-            print("⚠️ Using system default monospace font")
+            debug_logger.warning(LogCategory.UI, "Using system default monospace font")
             
     except Exception as e:
-        print(f"⚠️ Error setting font: {e}")
+        debug_logger.error(LogCategory.UI, f"Error setting font: {e}")
     
     # Create and show main window
     window = RenderwareModdingSuite()
