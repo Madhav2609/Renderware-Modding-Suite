@@ -49,10 +49,15 @@ def build_executable_comprehensive():
         f"--output-filename=RenderwareModdingSuite.exe",
         
         # PyQt6 Configuration
-        "--enable-plugin=pyqt6",            # Enable PyQt6 plugin
+        "--enable-plugin=pyqt6", 
         
         # Qt Plugins - Include all necessary plugins for styling and platform support
-        "--include-qt-plugins=platforms,styles,imageformats,iconengines",
+        "--include-qt-plugins=platforms,styles,imageformats,iconengines,geometryloaders,sceneparsers,renderers",
+        
+        # Qt3D specific includes for DFF Viewer
+        "--include-package=PyQt6.Qt3DCore",
+        "--include-package=PyQt6.Qt3DExtras", 
+        "--include-package=PyQt6.Qt3DRender",
         
         # Include the entire application directory to ensure all modules are found
         f"--include-package=application",
@@ -62,21 +67,26 @@ def build_executable_comprehensive():
         "--lto=no",                           # Disable LTO for faster builds
         "--jobs=4",                           # Use 4 parallel jobs
         
-        # Exclusions to reduce size
-        "--nofollow-import-to=tkinter",       # Exclude tkinter
-        "--nofollow-import-to=matplotlib",    # Exclude matplotlib if not needed
-        "--nofollow-import-to=numpy",         # Exclude numpy if not needed
-        "--nofollow-import-to=scipy",         # Exclude scipy if not needed
         
         # Auto-download dependencies
         "--assume-yes-for-downloads",         # Auto-download dependencies
         
-        # Windows-specific optimizations
-        "--windows-force-stdout-spec=nul",    # Redirect stdout
-        "--windows-force-stderr-spec=nul",    # Redirect stderr
-        
         str(application_main)                 # Main entry point
     ]
+
+    # Enable verbose logging if requested via CLI flag
+    verbose_enabled = ("--verbose" in sys.argv) or ("-v" in sys.argv)
+    if verbose_enabled:
+        print("[INFO] Verbose mode enabled for Nuitka build")
+        # Remove redirection so we can see all build output
+        for flag in ("--windows-force-stdout-spec=nul", "--windows-force-stderr-spec=nul"):
+            while flag in nuitka_cmd:
+                nuitka_cmd.remove(flag)
+        # Add Nuitka verbosity flags before the entrypoint (last element)
+        insert_at = len(nuitka_cmd) - 1
+        extra_flags = ["--verbose", "--show-modules", "--show-progress"]
+        for f in extra_flags:
+            nuitka_cmd.insert(insert_at, f)
 
     # Add icon-related options only if icon file exists
     if icon_file.exists():
