@@ -5,6 +5,7 @@ Manages all available tools and their instantiation
 
 from application.tools.IMG_Editor import ImgEditorTool
 from application.tools.DFF_Viewer.DFF_Viewer import DFFViewerTool
+from application.tools.RW_Analyze.RW_Analyze import RWAnalyzeTool
 
 
 
@@ -25,6 +26,12 @@ class ToolRegistry:
             'class': DFFViewerTool,
             'description': 'View and analyze 3D model files (DFF/OBJ)',
             'icon': '📦'
+        },
+        'rw_analyze': {
+            'name': 'RW Analyze',
+            'class': RWAnalyzeTool,
+            'description': 'Analyze RenderWare chunks (DFF/TXD/COL) with tree and details',
+            'icon': '🧩'
         },
         # Add other tools here as they are implemented
     }

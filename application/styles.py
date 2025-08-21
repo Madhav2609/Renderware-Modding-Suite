@@ -204,6 +204,11 @@ class ModernDarkTheme:
             font-size: {fonts['body']['size']}px;
         }}
         
+        QTreeView {{
+            /* Ensure consistent indentation so branch indicators have breathing room */
+            indentation: {rm.get_scaled_size(16)}px;
+        }}
+        
         QTreeWidget::item {{
             padding: {spacing['small']}px;
             border-bottom: 1px solid {ModernDarkTheme.BACKGROUND_TERTIARY};
@@ -217,12 +222,51 @@ class ModernDarkTheme:
             background-color: {ModernDarkTheme.HOVER_COLOR};
         }}
         
+        QTreeWidget::branch {{
+            background: transparent;
+        }}
+        QTreeView::branch {{
+            background: transparent;
+        }}
+        
+        QTreeWidget::branch:has-children {{
+            /* Add margin and fixed size so arrows align nicely */
+            margin: {spacing['small']//2}px;
+            width: {rm.get_scaled_size(12)}px;
+            height: {rm.get_scaled_size(12)}px;
+        }}
+        QTreeView::branch:has-children {{
+            margin: {spacing['small']//2}px;
+            width: {rm.get_scaled_size(12)}px;
+            height: {rm.get_scaled_size(12)}px;
+        }}
+
+        /* Hide indicator on leaf items to prevent filled squares */
+        QTreeWidget::branch:!has-children {{
+            image: none;
+            border-image: none;
+        }}
+        QTreeView::branch:!has-children {{
+            image: none;
+            border-image: none;
+        }}
+        
         QTreeWidget::branch:closed:has-children {{
-            image: url(data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHZpZXdCb3g9IjAgMCAxNiAxNiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTYgNEwxMCA4TDYgMTJWNFoiIGZpbGw9IiNjY2NjY2MiLz4KPC9zdmc+);
+            image: url(data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIiIGhlaWdodD0iMTIiIHZpZXdCb3g9IjAgMCAxMiAxMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBvbHlnb24gcG9pbnRzPSI0IDMgOCA2IDQgOSIgc3Ryb2tlPSIjY2NjY2NjIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgZmlsbD0ibm9uZSIvPgo8L3N2Zz4=);
+            border-image: none;
+        }}
+        QTreeView::branch:closed:has-children {{
+            image: url(data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIiIGhlaWdodD0iMTIiIHZpZXdCb3g9IjAgMCAxMiAxMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBvbHlnb24gcG9pbnRzPSI0IDMgOCA2IDQgOSIgc3Ryb2tlPSIjY2NjY2NjIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgZmlsbD0ibm9uZSIvPgo8L3N2Zz4=);
+            border-image: none;
         }}
         
         QTreeWidget::branch:open:has-children {{
-            image: url(data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTYiIGhlaWdodD0iMTYiIHZpZXdCb3g9IjAgMCAxNiAxNiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTQgNkw4IDEwTDEyIDZINFoiIGZpbGw9IiNjY2NjY2MiLz4KPC9zdmc+);
+            image: url(data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIiIGhlaWdodD0iMTIiIHZpZXdCb3g9IjAgMCAxMiAxMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBvbHlnb24gcG9pbnRzPSIzIDQgNiA4IDkgNCIgc3Ryb2tlPSIjY2NjY2NjIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgZmlsbD0ibm9uZSIvPgo8L3N2Zz4=);
+            border-image: none;
+        }}
+        QTreeView::branch:open:has-children {{
+            image: url(data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTIiIGhlaWdodD0iMTIiIHZpZXdCb3g9IjAgMCAxMiAxMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBvbHlnb24gcG9pbnRzPSIzIDQgNiA4IDkgNCIgc3Ryb2tlPSIjY2NjY2NjIiBzdHJva2Utd2lkdGg9IjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgZmlsbD0ibm9uZSIvPgo8L3N2Zz4=);
+            border-image: none;
         }}
         
         /* Tab Widget Styles */

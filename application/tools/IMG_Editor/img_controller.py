@@ -39,6 +39,8 @@ class IMGWorkerThread(QThread):
         self.operation_data = operation_data
         self.mutex = QMutex()
         self._cancelled = False
+        # Track whether we've already emitted completion for a cancel to avoid duplicates
+        self._cancelled_emitted = False
         
     def run(self):
         """Execute the operation based on type."""
@@ -77,9 +79,24 @@ class IMGWorkerThread(QThread):
             self._cancelled = True
     
     def _check_cancelled(self):
-        """Check if operation was cancelled."""
+        """Check if operation was cancelled and emit completion once.
+
+        Returns True if cancelled (and ensures a single completion signal is emitted),
+        otherwise False.
+        """
         with QMutexLocker(self.mutex):
-            return self._cancelled
+            if self._cancelled:
+                # Emit completion only once on cancellation to unblock UI
+                if not self._cancelled_emitted:
+                    try:
+                        # Best-effort progress update to reflect cancellation
+                        self.progress_updated.emit(100, "Operation cancelled")
+                    except Exception:
+                        pass
+                    self.operation_completed.emit(False, "Operation cancelled", None)
+                    self._cancelled_emitted = True
+                return True
+            return False
     
     def _open_archive_operation(self):
         """Open a single IMG archive."""

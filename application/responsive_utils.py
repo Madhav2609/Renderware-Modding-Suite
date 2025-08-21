@@ -167,16 +167,16 @@ class ResponsiveManager:
                 "weight": "normal"
             },
             "code": {
-                "size": self.get_scaled_font_size(11),
+                "size": self.get_scaled_font_size(12),
                 "weight": "normal",
                 "family": "'Fira Code', 'Consolas', 'Monaco', 'Cascadia Code', monospace"
             },
             "menu": {
-                "size": self.get_scaled_font_size(12),
+                "size": self.get_scaled_font_size(14),
                 "weight": "normal"
             },
             "status": {
-                "size": self.get_scaled_font_size(12),
+                "size": self.get_scaled_font_size(14),
                 "weight": "normal"
             }
         }
