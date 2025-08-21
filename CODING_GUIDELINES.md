@@ -17,30 +17,40 @@
 ```
 application/
 ├── main.py                     # Entry point
-├── main_application.py         # Main window and application logic
-├── styles.py                   # Centralized theme system
-├── responsive_utils.py         # Responsive design utilities
-├── content_area.py            # Central content management
-├── file_explorer.py           # File browser component
-├── tools_panel.py             # Tools sidebar
-├── status_bar.py              # Status information
+├── main_application.py         # Main window with menu system and component coordination
+├── styles.py                   # Centralized theme system (30+ color constants)
+├── responsive_utils.py         # Complete responsive design system
+├── debug_system.py             # Professional logging and monitoring system
+├── content_area.py            # Advanced tabbed workspace with lifecycle management
+├── file_explorer.py           # Integrated file browser
+├── tools_panel.py             # Dynamic tools sidebar
+├── status_bar.py              # Status display with memory monitoring
 ├── common/                    # Shared utilities
+│   ├── DFF.py                 # Complete RenderWare DFF parser (100KB+)
 │   ├── message_box.py         # Standardized dialogs
-│   └── rw_versions.py         # RenderWare version detection
+│   └── rw_versions.py         # Comprehensive RenderWare version detection
 └── tools/                     # Individual tools
-    ├── tool_registry.py       # Tool registration system
-    └── [ToolName]/            # Tool-specific modules
+    ├── tool_registry.py       # Tool registration and management
+    ├── IMG_Editor/            # Multi-archive IMG management tool
+    │   ├── __init__.py
+    │   ├── IMG_Editor.py      # Main UI with tabbed interface
+    │   ├── img_controller.py  # Archive management logic
+    │   ├── ui_interaction_handlers.py # Event handlers
+    │   ├── progress_dialog.py # Progress reporting
+    │   └── core/              # Archive processing utilities
+    └── DFF_Viewer/            # 3D model viewer with Qt3D
         ├── __init__.py
-        ├── [tool]_controller.py  # Business logic
-        ├── [Tool].py             # UI implementation
-        └── core/                 # Tool-specific utilities
+        └── DFF_Viewer.py      # 3D viewer with integrated controller
 ```
 
 ### Core Principles
-1. **Separation of Concerns**: UI, business logic, and data management are separate
-2. **Responsive Design**: All UI elements adapt to different screen sizes
-3. **Centralized Theming**: All colors and styles come from the theme system
-4. **Modular Tools**: Each tool is self-contained and follows the same patterns
+1. **Separation of Concerns**: UI, business logic, and data management are separate (MVC pattern)
+2. **Responsive Design**: All UI elements adapt to different screen sizes with breakpoint system
+3. **Centralized Theming**: All colors and styles come from the theme system (30+ constants)
+4. **Modular Tools**: Each tool is self-contained with proper lifecycle management
+5. **Debug Integration**: Comprehensive logging with categories and performance monitoring
+6. **Memory Management**: Proper resource cleanup and memory tracking
+7. **Professional Architecture**: Production-ready code with error handling and user feedback
 
 ## UI Design Principles
 
@@ -82,6 +92,8 @@ button.setMinimumSize(button_size[0], button_size[1])
 ## Theme System
 
 ### Theme Constants Reference
+The `ModernDarkTheme` class provides 30+ color constants for consistent theming:
+
 ```python
 # Background Colors
 ModernDarkTheme.BACKGROUND_PRIMARY   = "#1e1e1e"  # Main window background
@@ -107,6 +119,9 @@ ModernDarkTheme.SELECTION_COLOR  = "#37373d"  # Selected items
 ModernDarkTheme.BUTTON_PRIMARY   = "#0e639c"  # Button background
 ModernDarkTheme.BUTTON_HOVER     = "#1177bb"  # Button hover
 ModernDarkTheme.BUTTON_PRESSED   = "#005a9e"  # Button pressed
+
+# Additional specialized colors for tables, inputs, tooltips, etc.
+# See styles.py for the complete list of 30+ theme constants
 ```
 
 ### Theme Application
@@ -189,6 +204,11 @@ elif rm.breakpoint == "large":
 
 ## Tool Development
 
+### Current Tool Examples
+Study the existing tools for reference:
+- **IMG_Editor**: Multi-archive management with tabbed interface, filtering, and RenderWare analysis
+- **DFF_Viewer**: 3D model viewer with Qt3D rendering and interactive navigation
+
 ### 1. Tool Structure Template
 Every tool should follow this structure:
 
@@ -206,6 +226,7 @@ from PyQt6.QtCore import Qt, pyqtSignal
 from application.common.message_box import message_box
 from application.responsive_utils import get_responsive_manager
 from application.styles import ModernDarkTheme
+from application.debug_system import get_debug_logger, LogCategory
 from .your_controller import YourController
 
 
@@ -218,9 +239,12 @@ class YourTool(QWidget):
     
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.debug_logger = get_debug_logger()
         self.controller = YourController()
         self.setup_ui()
         self.setup_connections()
+        
+        self.debug_logger.info(LogCategory.TOOL, f"Initialized {self.__class__.__name__}")
     
     def setup_ui(self):
         """Setup the user interface with responsive design"""
@@ -268,13 +292,24 @@ class YourTool(QWidget):
     
     def on_operation_completed(self, message):
         """Handle successful operations"""
+        self.debug_logger.info(LogCategory.TOOL, f"Operation completed: {message}")
         self.status_update.emit(message)
         message_box.info(message, "Success", self)
     
     def on_error(self, error_message):
         """Handle errors"""
+        self.debug_logger.error(LogCategory.TOOL, f"Tool error: {error_message}")
         self.status_update.emit(f"Error: {error_message}")
         message_box.error(error_message, "Error", self)
+    
+    def cleanup(self):
+        """Clean up resources when tool is closed"""
+        try:
+            self.debug_logger.info(LogCategory.TOOL, f"Cleaning up {self.__class__.__name__}")
+            # Perform cleanup operations here
+            # Clear references, stop timers, etc.
+        except Exception as e:
+            self.debug_logger.log_exception(LogCategory.TOOL, "Error during tool cleanup", e)
 ```
 
 ### 2. Controller Pattern
@@ -287,6 +322,7 @@ Handles all non-UI operations
 
 from PyQt6.QtCore import QObject, pyqtSignal
 from pathlib import Path
+from application.debug_system import get_debug_logger, LogCategory
 
 
 class YourController(QObject):
@@ -299,24 +335,40 @@ class YourController(QObject):
     
     def __init__(self):
         super().__init__()
+        self.debug_logger = get_debug_logger()
         self.current_file = None
+        
+        self.debug_logger.debug(LogCategory.TOOL, f"Initialized {self.__class__.__name__}")
     
     def load_file(self, file_path):
         """Load a file for processing"""
+        load_timer = self.debug_logger.start_performance_timer(f"Load File: {Path(file_path).name}")
+        
         try:
             file_path = Path(file_path)
             if not file_path.exists():
+                self.debug_logger.error(LogCategory.FILE_IO, f"File not found: {file_path}")
                 self.error_occurred.emit(f"File not found: {file_path}")
                 return False
             
+            self.debug_logger.info(LogCategory.FILE_IO, f"Loading file: {file_path}")
+            
             # Your file loading logic here
             self.current_file = file_path
+            
+            self.debug_logger.log_file_operation("load", str(file_path), True, {
+                "file_size": file_path.stat().st_size
+            })
+            
             self.operation_completed.emit(f"Loaded: {file_path.name}")
             return True
             
         except Exception as e:
+            self.debug_logger.log_exception(LogCategory.FILE_IO, f"Failed to load file: {file_path}", e)
             self.error_occurred.emit(f"Failed to load file: {str(e)}")
             return False
+        finally:
+            self.debug_logger.end_performance_timer(load_timer)
     
     def process_operation(self, operation_type, parameters=None):
         """Process a specific operation"""
@@ -338,18 +390,27 @@ class YourController(QObject):
 
 ### 3. Tool Registration
 ```python
-# In tools/__init__.py, add your tool:
-from .YourTool.YourTool import YourTool
-
 # In tools/tool_registry.py, register your tool:
-def get_available_tools():
-    return {
-        "your_tool": {
-            "name": "Your Tool",
-            "description": "Brief description",
-            "class": YourTool,
-            "icon": "🔧",
-            "category": "Utilities"
+class ToolRegistry:
+    _tools = {
+        'your_tool': {
+            'name': 'Your Tool',
+            'class': YourTool,
+            'description': 'Brief description of what your tool does',
+            'icon': '🔧'
+        },
+        # Existing tools:
+        'IMG_Editor': {
+            'name': 'IMG_Editor',
+            'class': ImgEditorTool,
+            'description': 'Edit and manage IMG archive files',
+            'icon': '📁'
+        },
+        'dff_viewer': {
+            'name': 'DFF Viewer',
+            'class': DFFViewerTool,
+            'description': 'View and analyze 3D model files (DFF/OBJ)',
+            'icon': '📦'
         }
     }
 ```
@@ -554,60 +615,103 @@ def create_data_table(self, headers):
 
 ## Testing & Debugging
 
-### 1. Debug Output
+### 1. Debug System Integration
 ```python
-# Use consistent debug output format
-print(f"✅ Success: {message}")
-print(f"⚠️ Warning: {message}")
-print(f"❌ Error: {message}")
-print(f"🔧 Debug: {debug_info}")
+# Use the integrated debug system instead of print statements
+from application.debug_system import get_debug_logger, LogCategory
+
+debug_logger = get_debug_logger()
+
+# Categorized logging
+debug_logger.info(LogCategory.TOOL, "Tool operation completed successfully")
+debug_logger.warning(LogCategory.UI, "UI component not responding as expected")
+debug_logger.error(LogCategory.FILE_IO, "Failed to read file")
+debug_logger.debug(LogCategory.SYSTEM, "Debug information for development")
+
+# Performance monitoring
+timer = debug_logger.start_performance_timer("Heavy Operation")
+# ... perform operation ...
+debug_logger.end_performance_timer(timer)
+
+# Memory tracking
+debug_logger.log_memory_usage("Tool Name", memory_mb)
+
+# Exception logging with full traceback
+try:
+    risky_operation()
+except Exception as e:
+    debug_logger.log_exception(LogCategory.TOOL, "Operation failed", e)
 ```
 
 ### 2. Responsive Testing
 ```python
-# Test your UI at different scales
+# Test your UI at different scales using the debug system
 def test_responsive_scaling(self):
     """Test UI at different scale factors"""
     rm = get_responsive_manager()
     original_scale = rm.scale_factor
     
+    self.debug_logger.info(LogCategory.UI, f"Starting responsive scaling test, original scale: {original_scale}")
+    
     # Test different scales
     for scale in [0.8, 1.0, 1.25, 1.5, 2.0]:
+        test_timer = self.debug_logger.start_performance_timer(f"Scale Test: {scale}")
         rm.scale_factor = scale
         self.refresh_ui()
-        # Visual inspection or automated checks
+        self.debug_logger.info(LogCategory.UI, f"Tested scale factor: {scale}")
+        self.debug_logger.end_performance_timer(test_timer)
     
     # Restore original scale
     rm.scale_factor = original_scale
     self.refresh_ui()
+    self.debug_logger.info(LogCategory.UI, "Responsive scaling test completed")
 ```
 
 ### 3. Memory Monitoring
 ```python
-import psutil
-import os
-
-def get_memory_usage():
-    """Get current memory usage for debugging"""
-    process = psutil.Process(os.getpid())
-    memory_mb = process.memory_info().rss / 1024 / 1024
-    return f"{memory_mb:.1f} MB"
+# Use the integrated memory monitoring system
+def monitor_tool_memory(self):
+    """Monitor memory usage for your tool"""
+    try:
+        import psutil
+        process = psutil.Process()
+        memory_info = process.memory_info()
+        memory_mb = memory_info.rss / 1024 / 1024
+        
+        # Log memory usage through debug system
+        self.debug_logger.log_memory_usage(self.__class__.__name__, memory_mb)
+        
+        # Set threshold warnings
+        if memory_mb > 500:  # 500MB threshold
+            self.debug_logger.warning(LogCategory.MEMORY, 
+                f"High memory usage detected: {memory_mb:.1f} MB")
+        
+        return memory_mb
+    except ImportError:
+        self.debug_logger.warning(LogCategory.MEMORY, "psutil not available for memory monitoring")
+        return 0
 ```
 
 ## Quick Reference Checklist
 
 When creating a new tool, ensure you have:
 
-- [ ] Used `get_responsive_manager()` for all sizing
-- [ ] Used `ModernDarkTheme` constants for all colors
-- [ ] Implemented proper error handling with `message_box`
+- [ ] Used `get_responsive_manager()` for all sizing and spacing
+- [ ] Used `ModernDarkTheme` constants for all colors (never hardcode colors)
+- [ ] Integrated `get_debug_logger()` for all logging and monitoring
+- [ ] Implemented proper error handling with `message_box` and debug logging
 - [ ] Added responsive font sizing with `fonts['type']['size']`
 - [ ] Used consistent spacing with `spacing['size']`
-- [ ] Followed the MVC pattern (UI, Controller, Model)
+- [ ] Followed the MVC pattern with separated UI and controller
 - [ ] Added proper signal connections for communication
 - [ ] Implemented progress feedback for long operations
+- [ ] Added comprehensive cleanup methods for resource management
 - [ ] Added tool registration in `tool_registry.py`
-- [ ] Tested at different UI scales
+- [ ] Used performance timers for operation profiling
+- [ ] Added memory monitoring for resource tracking
+- [ ] Tested at different UI scales and screen sizes
+- [ ] Added proper exception handling with debug system integration
+- [ ] Followed existing tool patterns (IMG_Editor, DFF_Viewer)
 - [ ] Added proper documentation and comments
 
 ---

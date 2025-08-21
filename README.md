@@ -39,43 +39,92 @@ The Renderware Modding Suite is designed to be a comprehensive solution for modd
 
 ### Included Tools
 
-- **IMG Editor:** A powerful tool for managing `.img` archives with comprehensive RenderWare version detection and modern tabbed interface.
-  - **Multi-Archive Support:** Open and manage multiple IMG archives simultaneously with tabbed interface.
-  - **Archive Format Support:** Both Version 1 (GTA III/VC) and Version 2 (SA) IMG archives.
-  - **Advanced RenderWare Support:**
-    - Automatic detection of DFF, TXD, and COL file formats
-    - Version identification for all GTA games (III, VC, SA, LCS, VCS)
-    - Enhanced filtering by game version and file format
-    - Detailed tooltips with version information
-    - Real-time analysis of archive contents
-  - **Operations:**
-    - Create, open, and save archives
-    - Add, remove, and replace files within archives
-    - Extract files from archives with organized output
-    - Rebuild archives to optimize space
-    - Advanced search and filtering capabilities
+- **IMG Editor:** A comprehensive tool for managing `.img` archives with multi-archive tabbed interface and advanced RenderWare analysis.
+  - **Multi-Archive Support:** Open and manage multiple IMG archives simultaneously with dedicated tabs for each archive.
+  - **Archive Format Support:** Both Version 1 (GTA III/VC) and Version 2 (SA) IMG archives with full compatibility.
+  - **Advanced RenderWare Detection:**
+    - Automatic detection of DFF, TXD, and COL file formats with version identification
+    - Support for all GTA games (III, VC, SA, LCS, VCS) with specific version detection
+    - Enhanced filtering by game version, file format, and RenderWare compatibility
+    - Real-time RenderWare version analysis with detailed breakdowns
+    - COL file format detection (COL1, COL2, COL3, COL4)
+  - **Archive Operations:**
+    - Create new archives with version selection
+    - Open single or multiple archives simultaneously
+    - Import files, folders, or via IDE with preview functionality
+    - Extract selected entries or entire archives with organized output
+    - Delete entries with modification tracking and restore capabilities
+    - Export operations with type filtering and preview
+  - **Advanced Features:**
+    - Comprehensive search and filtering with multiple criteria
     - Multi-selection operations for batch processing
+    - Modification tracking with detailed status reporting
+    - Progress indicators with cancellation support
+    - Archive validation and integrity checking
   - **User Experience:**
-    - Responsive design that adapts to screen size
-    - Consistent dark theme throughout interface
-    - Progress indicators for long operations
-    - Comprehensive error handling and user feedback
-    - Context-sensitive help and tooltips
+    - Tabbed interface for managing multiple archives
+    - Responsive table with sortable columns and alternating row colors
+    - Real-time filtering with search, type, and RenderWare version filters
+    - Context menus and keyboard shortcuts
+    - Comprehensive error handling with detailed feedback
 
-*(More tools are planned for future releases. See `CODING_GUIDELINES.md` for tool development standards.)*
+- **DFF Viewer:** A professional 3D model viewer with interactive inspection and advanced rendering capabilities.
+  - **3D Rendering Engine:** Built on Qt3D with hardware-accelerated rendering and professional lighting setup.
+  - **Model Support:**
+    - Native DFF (RenderWare 3D model) file support with full geometry parsing
+    - OBJ file support for standard 3D models
+    - Automatic model bounds detection and camera positioning
+  - **Interactive Navigation:**
+    - Blender-style camera controls with mouse and keyboard navigation
+    - Orbit, pan, and zoom operations with visual feedback
+    - Customizable camera positioning with distance, azimuth, and elevation controls
+    - Reset view and focus-on-bounds functionality
+  - **Advanced Features:**
+    - Interactive model inspector with geometry highlighting
+    - Three-point lighting system (key, fill, rim lights) for professional visualization
+    - Material override system for consistent model viewing
+    - Background color customization
+    - Real-time model reloading for development workflows
+  - **Rendering Features:**
+    - Hardware-accelerated rendering with proper vertex/normal/UV handling
+    - Support for RenderWare frame hierarchies and transformations
+    - Material color extraction from DFF files
+    - Axis gizmo for spatial reference
+  - **Integration:**
+    - Seamless integration with suite's responsive design system
+    - Debug logging integration for development and troubleshooting
+    - Tool action signals for communication with main application
+
+- **Debug System:** Comprehensive logging and monitoring system for development and troubleshooting.
+  - **Multi-Level Logging:** Support for TRACE, DEBUG, INFO, WARNING, ERROR, and CRITICAL levels
+  - **Categorized Logging:** Organized by SYSTEM, UI, FILE_IO, TOOL, MEMORY, PERFORMANCE, USER_ACTION categories
+  - **Performance Monitoring:** Built-in performance timers for operation profiling
+  - **Memory Tracking:** Real-time memory usage monitoring and logging
+  - **File Logging:** Automatic log file generation with session tracking
+  - **Colored Terminal Output:** Enhanced readability with color-coded log levels
+
+*(The application architecture supports easy addition of new tools. See `CODING_GUIDELINES.md` for tool development standards.)*
 
 ## Architecture
 
 The application follows a modern, modular architecture to ensure scalability and maintainability.
 
-- **Main Application (`main_application.py`):** The core of the suite with system-independent theme enforcement. It initializes the main window and manages the overall layout, which consists of a file explorer, a central content area, and a tools panel.
-- **Theme System (`styles.py`):** Centralized theming with `ModernDarkTheme` class that provides consistent colors and styling across all components, independent of system theme settings.
-- **Responsive Design (`responsive_utils.py`):** Comprehensive responsive design system that adapts to different screen sizes, DPI settings, and user scaling preferences.
-- **Tool Registry (`tool_registry.py`):** A centralized system for managing and instantiating all available modding tools. This allows for easy addition of new tools without modifying the core application logic.
-- **Content Area (`content_area.py`):** The main workspace where the selected tool's UI is displayed with tabbed interface support.
-- **Modular Tools (e.g., `IMG_Editor/`):** Each tool is a self-contained module following MVC pattern with separated UI and business logic components.
-- **Backend Logic:** The business logic for each tool is separated from the UI using controller classes, allowing for cleaner code and easier testing.
-- **Common Utilities (`common/`):** Shared components like message dialogs and RenderWare version detection that maintain consistency across tools.
+- **Main Application (`main_application.py`):** The core application with comprehensive window management, menu system, and component coordination. Features system-independent theme enforcement, memory monitoring, and advanced UI scaling controls.
+- **Theme System (`styles.py`):** Centralized theming with `ModernDarkTheme` class providing 30+ color constants and system palette override for consistent dark theme across all platforms.
+- **Responsive Design (`responsive_utils.py`):** Complete responsive design system with breakpoint detection, DPI awareness, font scaling, and adaptive component sizing for optimal experience across all screen sizes.
+- **Debug System (`debug_system.py`):** Professional logging system with categorized output, performance timers, memory tracking, and colored terminal output for comprehensive development and troubleshooting support.
+- **Tool Registry (`tool_registry.py`):** Centralized tool management system supporting dynamic tool registration, instantiation, and metadata management for seamless tool integration.
+- **Content Area (`content_area.py`):** Advanced tabbed workspace with tool lifecycle management, cleanup handling, and seamless switching between different tool interfaces.
+- **File Explorer (`file_explorer.py`):** Integrated file browser with responsive design and file selection capabilities for easy navigation of game assets.
+- **Tools Panel (`tools_panel.py`):** Dynamic tools sidebar that adapts to available tools and provides quick access to all modding utilities.
+- **Status Bar (`status_bar.py`):** Comprehensive status display with memory usage monitoring, file information, and operation feedback.
+- **Modular Tools:** Each tool follows MVC architecture with separated concerns:
+  - **IMG Editor (`IMG_Editor/`):** Multi-archive management with tabbed interface, advanced filtering, and RenderWare analysis
+  - **DFF Viewer (`DFF_Viewer/`):** 3D model viewer with Qt3D rendering, interactive navigation, and professional lighting
+- **Common Utilities (`common/`):** Shared components including:
+  - **DFF Parser (`DFF.py`):** Complete RenderWare DFF file format parser with geometry, material, and animation support
+  - **RenderWare Versions (`rw_versions.py`):** Comprehensive version detection for all GTA games and file formats
+  - **Message Box (`message_box.py`):** Standardized dialog system with theme consistency
 
 ## Technical Details
 
@@ -85,10 +134,11 @@ The application follows a modern, modular architecture to ensure scalability and
 - **Responsive Design:** Adaptive UI that scales properly across different screen sizes and DPI settings.
 - **Architecture:** Modular MVC pattern with separation of UI, business logic, and data management.
 - **Dependencies:**
-  - `PyQt6`: For the graphical user interface.
-  - `psutil`: For monitoring system memory usage.
-  - `nuitka`: For building optimized executables (optional).
-  - `darkdetect`: Legacy dependency (no longer used - theme is now system-independent).
+  - `PyQt6`: Complete GUI framework including Qt3D for 3D rendering capabilities
+  - `psutil`: System monitoring for memory usage tracking and performance analysis
+  - `nuitka`: Build system for creating optimized standalone executables (optional)
+  - `colorama`: Terminal color support for enhanced debug output readability
+  - `darkdetect`: Legacy dependency (retained for compatibility, theme is now system-independent)
 
 ### RenderWare Version Detection System
 
@@ -123,7 +173,7 @@ The system uses a multi-stage detection approach:
 2. **RenderWare Files:** Section type + version analysis for DFF/TXD files
 3. **Fallback Detection:** Generic file type identification for unknown formats
 
-All detection logic is centralized in `application/common/rw_versions.py` for consistency across tools.
+All detection logic is centralized in `application/common/rw_versions.py` for consistency across tools, with comprehensive support for both standard RenderWare files and collision formats.
 
 ### Theme System
 
@@ -245,6 +295,13 @@ Once the installation is complete, you can run the application with the followin
 python -m application.main
 ```
 
+The application will start with:
+- **Welcome Screen:** Initial interface with tool selection
+- **Memory Monitoring:** Real-time memory usage display in status bar
+- **Responsive UI:** Automatically adapted to your screen size and DPI
+- **Debug Logging:** Comprehensive logging to terminal and log files
+- **Menu System:** Full menu bar with keyboard shortcuts and zoom controls
+
 ## Building from Source
 
 You can create a standalone executable of the application using the included build system.
@@ -295,22 +352,38 @@ If you're planning to extend the application or create new tools, please refer t
 - **Tool Development:** Standardized patterns for creating new modding tools
 - **Testing Guidelines:** Best practices for testing and debugging
 
+### Current Tool Architecture
+
+The application currently includes two fully implemented tools:
+
+**IMG Editor Structure:**
+```
+tools/IMG_Editor/
+├── __init__.py
+├── IMG_Editor.py              # Main UI with tabbed interface
+├── img_controller.py          # Business logic and archive management
+├── ui_interaction_handlers.py # UI event handlers
+├── progress_dialog.py         # Progress reporting
+└── core/                      # Archive processing utilities
+```
+
+**DFF Viewer Structure:**
+```
+tools/DFF_Viewer/
+├── __init__.py
+├── DFF_Viewer.py             # 3D viewer with Qt3D integration
+└── (integrated controller)    # Business logic within main class
+```
+
 ### Quick Start for New Tools
 
-1. Follow the tool template in `CODING_GUIDELINES.md`
+1. Follow the established patterns from existing tools
 2. Use `get_responsive_manager()` for all sizing and spacing
 3. Use `ModernDarkTheme` constants for all colors
-4. Implement the controller pattern for business logic
+4. Implement the MVC pattern with separated UI and controller
 5. Register your tool in `tool_registry.py`
-
-Example tool structure:
-```
-tools/YourTool/
-├── __init__.py
-├── YourTool.py           # UI implementation
-├── your_controller.py    # Business logic
-└── core/                 # Tool-specific utilities
-```
+6. Use the debug system for logging and performance monitoring
+7. Follow the cleanup patterns for proper resource management
 
 ## Contributing
 
