@@ -4,6 +4,7 @@ Manages all available tools and their instantiation
 """
 
 from application.tools.IMG_Editor import ImgEditorTool
+from application.tools.DFF_Viewer.DFF_Viewer import DFFViewerTool
 
 
 
@@ -18,6 +19,12 @@ class ToolRegistry:
             'class': ImgEditorTool,
             'description': 'Edit and manage IMG archive files',
             'icon': '📁'
+        },
+        'dff_viewer': {
+            'name': 'DFF Viewer',
+            'class': DFFViewerTool,
+            'description': 'View and analyze 3D model files (DFF/OBJ)',
+            'icon': '📦'
         },
         # Add other tools here as they are implemented
     }
