@@ -49,7 +49,7 @@ def build_executable_comprehensive():
         f"--output-filename=RenderwareModdingSuite.exe",
         
         # PyQt6 Configuration
-        "--enable-plugin=PyQt6",            # Enable PyQt6 plugin
+        "--enable-plugin=pyqt6",            # Enable PyQt6 plugin
         
         # Qt Plugins - Include all necessary plugins for styling and platform support
         "--include-qt-plugins=platforms,styles,imageformats,iconengines",
