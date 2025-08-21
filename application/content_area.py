@@ -10,7 +10,7 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                             QTableWidgetItem, QHeaderView, QSplitter, QTreeWidget,
                             QTreeWidgetItem, QLineEdit, QComboBox, QProgressBar,
                             QFrame, QSizePolicy)
-from PyQt6.QtCore import Qt, pyqtSignal, QPoint, QPropertyAnimation, QEasingCurve
+from PyQt6.QtCore import Qt, pyqtSignal, QPoint, QPropertyAnimation, QEasingCurve, QTimer
 from PyQt6.QtGui import QAction, QIcon
 from application.tools import ToolRegistry
 
@@ -28,11 +28,10 @@ class ContentArea(QWidget):
         
         # Tab widget for multiple content views
         self.tab_widget = QTabWidget()
-        self.tab_widget.setTabsClosable(True)
+        self.tab_widget.setTabsClosable(False)  # Disable built-in close buttons
         self.tab_widget.setMovable(True)  # Allow tab reordering
         self.tab_widget.setUsesScrollButtons(True)  # Show scroll buttons when many tabs
         self.tab_widget.setElideMode(Qt.TextElideMode.ElideRight)  # Elide long tab names
-        self.tab_widget.tabCloseRequested.connect(self.close_tab)
         
         # Ensure close buttons are visible with explicit styling
         self.tab_widget.setStyleSheet("""
@@ -214,24 +213,17 @@ class ContentArea(QWidget):
         """)
         close_button.setToolTip("Close tab")
         
-        # Store tab index as property and connect to close function
-        close_button.tab_index = tab_index
-        close_button.clicked.connect(lambda: self.close_tab_by_button(close_button))
+        # Use QTimer.singleShot to defer the close operation and avoid crashes
+        def safe_close():
+            QTimer.singleShot(0, lambda: self.close_tab(tab_index))
+        
+        close_button.clicked.connect(safe_close)
         
         # Set the custom close button
         tab_bar = self.tab_widget.tabBar()
         tab_bar.setTabButton(tab_index, QTabBar.ButtonPosition.RightSide, close_button)
         
         return close_button
-    
-    def close_tab_by_button(self, button):
-        """Close tab using custom button"""
-        # Find the current index of the tab with this button
-        tab_bar = self.tab_widget.tabBar()
-        for i in range(self.tab_widget.count()):
-            if tab_bar.tabButton(i, QTabBar.ButtonPosition.RightSide) == button:
-                self.close_tab(i)
-                break
     
     def load_file(self, file_path):
         """Load and display a file in a new tab"""
@@ -448,36 +440,29 @@ This tool will be implemented in a future update.""")
             self.parent().status_bar.show_info(f"Reload functionality for '{tab_title}' will be implemented in future versions")
     
     def close_tab(self, index):
-        """Close tab by index"""
-        # Don't close welcome tab (index 0)
-        if index > 0:
-            # Get tab title for status update
-            tab_title = self.tab_widget.tabText(index)
-            print(f"Closing tab: {tab_title} (index: {index})")
-            
-            # Get the widget before removing the tab
-            widget = self.tab_widget.widget(index)
-            
-            # Clean up tool resources if it's a tool tab
-            if widget and hasattr(widget, 'cleanup'):
-                try:
-                    print(f"Cleaning up tool widget for tab: {tab_title}")
-                    widget.cleanup()
-                except Exception as e:
-                    print(f"Warning: Error during tool cleanup: {e}")
-            
-            # Remove the tab
-            self.tab_widget.removeTab(index)
-            
-            # If this was the last tab (besides welcome), switch to welcome tab
-            if self.tab_widget.count() == 1:
-                self.tab_widget.setCurrentIndex(0)
-            
-            # Emit signal if we have a parent that can handle status updates
-            if hasattr(self.parent(), 'status_bar'):
-                self.parent().status_bar.show_success(f"Closed tab: {tab_title}")
-            
-            print(f"Tab closed successfully: {tab_title}")
+        """Close tab by index with proper cleanup"""
+        if index <= 0:  # Don't close welcome/home tab
+            return
+        
+        if index >= self.tab_widget.count():
+            return
+        
+        # Get the widget before removing the tab
+        widget = self.tab_widget.widget(index)
+        
+        # Clean up tool resources if it's a tool tab
+        if widget and hasattr(widget, 'cleanup'):
+            try:
+                widget.cleanup()
+            except Exception as e:
+                print(f"Warning: Error during widget cleanup: {e}")
+        
+        # Remove the tab
+        self.tab_widget.removeTab(index)
+        
+        # Switch to welcome tab if this was the last tab
+        if self.tab_widget.count() == 1:
+            self.tab_widget.setCurrentIndex(0)
     
     def close_all_tabs_except_welcome(self):
         """Close all tabs except the welcome tab"""
