@@ -6,6 +6,7 @@ Manages all available tools and their instantiation
 from application.tools.IMG_Editor import ImgEditorTool
 from application.tools.DFF_Viewer.DFF_Viewer import DFFViewerTool
 from application.tools.RW_Analyze.RW_Analyze import RWAnalyzeTool
+from application.tools.IDE_Editor.IDE_Editor import IDEEditorTool
 
 
 
@@ -32,6 +33,12 @@ class ToolRegistry:
             'class': RWAnalyzeTool,
             'description': 'Analyze RenderWare chunks (DFF/TXD/COL) with tree and details',
             'icon': '🧩'
+        },
+        'ide_editor': {
+            'name': 'IDE Editor',
+            'class': IDEEditorTool,
+            'description': 'Edit and validate IDE item definition files with table and raw views',
+            'icon': '📋'
         },
         # Add other tools here as they are implemented
     }

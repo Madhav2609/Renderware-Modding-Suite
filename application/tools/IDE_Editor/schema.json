@@ -1,0 +1,318 @@
+{
+    "meta": {
+    "version": "1.0",
+    "description": "Comprehensive IDE section schema for GTA 3D-era games (GTA III, Vice City, San Andreas). Designed for deterministic parsing/serializing with variant support, variable-length fields, and round-trip fidelity.",
+    "preserveUnknownColumns": true,
+    "notes": "Use the ordered 'columns' array as authoritative column order. Support discriminator-based variants, variableLength + dependsOn for arrays (e.g., draw distances), and preserve leftover tokens in an 'extraFields' array per row."
+    },
+    "sections": {
+    "objs": {
+    "supportedGames": ["GTA III", "Vice City", "San Andreas"],
+    "primaryKeys": ["id"],
+    "description": "Standard static map objects.",
+    "columns": [
+    { "name": "id", "type": "int", "required": true },
+    { "name": "modelName", "type": "string", "required": true },
+    { "name": "textureName", "type": "string", "required": true },
+    { "name": "drawDists", "type": "array", "itemsType": "float", "variableLength": true, "dependsOn": "objectCount", "required": true, "description": "One draw distance value per sub-object" },
+    { "name": "flags", "type": "int", "required": false, "default": 0 }
+    ],
+    "parseHints": {
+    "variableLengthStrategy": "use objectCount when present; fallback to 1 if missing; reserve final token for flags when tokens ambiguous",
+    "serializeNotes": "Join drawDists as comma-separated tokens; if objectCount absent, write it if drawDists length != 1."
+    }
+    },
+    "tobj": {
+    "supportedGames": ["GTA III", "Vice City", "San Andreas"],
+    "primaryKeys": ["id"],
+    "description": "Timed map objects (same as OBJS plus TimeOn/TimeOff).",
+    "columns": [
+    { "name": "id", "type": "int", "required": true },
+    { "name": "modelName", "type": "string", "required": true },
+    { "name": "textureName", "type": "string", "required": true },
+    { "name": "drawDists", "type": "array", "itemsType": "float", "variableLength": true, "dependsOn": "objectCount", "required": true },
+    { "name": "flags", "type": "int", "required": false, "default": 0 },
+    { "name": "timeOn", "type": "int", "required": true, "description": "Activation hour (0-23)" },
+    { "name": "timeOff", "type": "int", "required": true, "description": "Deactivation hour (0-23)" }
+    ],
+    "parseHints": {
+    }
+    },
+    "anim": {
+    "supportedGames": ["San Andreas"],
+    "primaryKeys": ["id"],
+    "description": "Animated map objects (SA only).",
+    "columns": [
+    { "name": "id", "type": "int", "required": true },
+    { "name": "modelName", "type": "string", "required": true },
+    { "name": "textureName", "type": "string", "required": true },
+    { "name": "animName", "type": "string", "required": true, "description": "IFP animation archive (no extension)" },
+    { "name": "drawDist", "type": "float", "required": true },
+    { "name": "flags", "type": "int", "required": false, "default": 0 }
+    ],
+    "parseHints": {
+    "note": "Some legacy formats omit objectCount; treat like OBJS for parsing"
+    }
+    },
+    "peds": {
+    "supportedGames": ["GTA III", "Vice City", "San Andreas"],
+    "primaryKeys": ["id"],
+    "description": "Pedestrian and character definitions.",
+    "columns": [
+    { "name": "id", "type": "int", "required": true },
+    { "name": "modelName", "type": "string", "required": true },
+    { "name": "txdName", "type": "string", "required": true },
+    { "name": "threat", "type": "string", "required": true, "description": "Default pedtype" },
+    { "name": "behavior", "type": "string", "required": true, "description": "pedstats.dat key" },
+    { "name": "animGroup", "type": "string", "required": true },
+    { "name": "vehClass", "type": "string", "required": true, "description": "Classes of vehicle the ped can drive, hex mask", "format": "hex" },
+    { "name": "flags", "type": "string", "required": false, "games": ["San Andreas"], "description": "SA-only flags bitmask (hex)", "format": "hex" },
+    { "name": "animFile", "type": "string", "required": false, "games": ["Vice City", "San Andreas"], "description": "Secondary animations (e.g., sunbathing)" },
+    { "name": "radio1", "type": "int", "required": false, "games": ["Vice City", "San Andreas"], "description": "Preferred radio station index" },
+    { "name": "radio2", "type": "int", "required": false, "games": ["Vice City", "San Andreas"], "description": "Secondary preferred radio station index" },
+    { "name": "voiceArchive", "type": "string", "required": false, "games": ["San Andreas"], "description": "Audio stream archive name" },
+    { "name": "voice1", "type": "string", "required": false, "games": ["San Andreas"], "description": "Primary voice line set" },
+    { "name": "voice2", "type": "string", "required": false, "games": ["San Andreas"], "description": "Secondary voice line set" }
+    ],
+    "parseHints": {
+    "hexFields": ["vehClass", "flags"]
+    }
+    },
+    "weap": {
+    "supportedGames": ["Vice City", "San Andreas"],
+    "primaryKeys": ["id"],
+    "description": "Weapon definitions. Some fields undocumented — preserve extras.",
+    "columns": [
+    { "name": "id", "type": "int", "required": true },
+    { "name": "modelName", "type": "string", "required": true },
+    { "name": "textureName", "type": "string", "required": true },
+    { "name": "animation", "type": "string", "required": false, "description": "Animation name from ped.ifp used to wield/shoot." },
+    { "name": "MeshCount", "type": "int", "required": false },
+    { "name": "drawDist", "type": "float", "required": false },
+    { "name": "unknown_2", "type": "string", "required": false }
+    ],
+    "parseHints": {
+    "preserveUnknownColumns": true
+    }
+    },
+    "cars": {
+      "supportedGames": ["GTA III", "Vice City", "San Andreas"],
+      "primaryKeys": ["id"],
+      "description": "Vehicle definitions. 'type' is a discriminator; per-type extra columns vary by game.",
+      "discriminator": true,
+      "columns": [
+        { "name": "id", "type": "int", "required": true },
+        { "name": "modelName", "type": "string", "required": true },
+        { "name": "txdName", "type": "string", "required": true },
+        { "name": "type", "type": "string", "required": true, "discriminator": true },
+        { "name": "handlingId", "type": "string", "required": true },
+        { "name": "gameName", "type": "string", "required": true, "description": "GXT key (<=7 chars)" },
+        { "name": "anims", "type": "string", "required": false, "games": ["Vice City", "San Andreas"], "description": "Animation file/name (mainly bikes)" },
+        { "name": "class", "type": "string", "required": true, "description": "Vehicle class (per-game list)" },
+        { "name": "frequency", "type": "int", "required": true },
+        { "name": "level", "type": "int", "required": false, "description": "Island/level flags (III/VC)" },
+        { "name": "flags", "type": "int", "required": false, "games": ["San Andreas"], "description": "SA-only flags (integer)" },
+        { "name": "comprules", "type": "string", "required": false, "format": "hex", "description": "Component rules (hex)" }
+      ],
+      "variants": {
+        "car": {
+          "insertAfter": "comprules",
+          "description": "Standard car extra fields (per game).",
+          "extraColumns": [
+            { "name": "wheelId", "type": "int", "required": false },
+            { "name": "wheelScale", "type": "float", "required": false, "games": ["GTA III", "Vice City"] },
+            { "name": "wheelScaleFront", "type": "float", "required": false, "games": ["San Andreas"] },
+            { "name": "wheelScaleRear", "type": "float", "required": false, "games": ["San Andreas"] },
+            { "name": "wheelUpgradeClass", "type": "int", "required": false, "games": ["San Andreas"], "description": "Links to carmods.dat wheel set" }
+          ]
+        },
+        "bike": {
+          "insertAfter": "comprules",
+          "description": "Bike-specific columns (VC bikes; SA bikes have wheel params like cars).",
+          "extraColumns": [
+            { "name": "steeringAngle", "type": "float", "required": false, "games": ["Vice City"] },
+            { "name": "wheelScale", "type": "float", "required": false, "games": ["Vice City"] },
+            { "name": "wheelId", "type": "int", "required": false, "games": ["San Andreas"] },
+            { "name": "wheelScaleFront", "type": "float", "required": false, "games": ["San Andreas"] },
+            { "name": "wheelScaleRear", "type": "float", "required": false, "games": ["San Andreas"] },
+            { "name": "wheelUpgradeClass", "type": "int", "required": false, "games": ["San Andreas"] }
+          ]
+        },
+        "plane": {
+          "insertAfter": "comprules",
+          "description": "Plane extra fields (LOD model).",
+          "extraColumns": [
+            { "name": "lodModel", "type": "int", "required": false }
+          ]
+        },
+        "boat": {
+          "insertAfter": "comprules",
+          "description": "Boat variant: no extra fields.",
+          "extraColumns": []
+        },
+        "heli": {
+          "insertAfter": "comprules",
+          "description": "Heli variant: no extra fields.",
+          "extraColumns": []
+        },
+        "train": {
+          "insertAfter": "comprules",
+          "description": "Train variant (III/VC): no extra fields.",
+          "extraColumns": []
+        },
+        "trailer": {
+          "insertAfter": "comprules",
+          "description": "SA trailer wheel parameters.",
+          "extraColumns": [
+            { "name": "wheelId", "type": "int", "required": false, "games": ["San Andreas"] },
+            { "name": "wheelScaleFront", "type": "float", "required": false, "games": ["San Andreas"] },
+            { "name": "wheelScaleRear", "type": "float", "required": false, "games": ["San Andreas"] },
+            { "name": "wheelUpgradeClass", "type": "int", "required": false, "games": ["San Andreas"] }
+          ]
+        },
+        "bmx": {
+          "insertAfter": "comprules",
+          "description": "SA BMX wheel parameters.",
+          "extraColumns": [
+            { "name": "wheelId", "type": "int", "required": false, "games": ["San Andreas"] },
+            { "name": "wheelScaleFront", "type": "float", "required": false, "games": ["San Andreas"] },
+            { "name": "wheelScaleRear", "type": "float", "required": false, "games": ["San Andreas"] },
+            { "name": "wheelUpgradeClass", "type": "int", "required": false, "games": ["San Andreas"] }
+          ]
+        },
+        "quad": {
+          "insertAfter": "comprules",
+          "description": "SA Quad wheel parameters.",
+          "extraColumns": [
+            { "name": "wheelId", "type": "int", "required": false, "games": ["San Andreas"] },
+            { "name": "wheelScaleFront", "type": "float", "required": false, "games": ["San Andreas"] },
+            { "name": "wheelScaleRear", "type": "float", "required": false, "games": ["San Andreas"] },
+            { "name": "wheelUpgradeClass", "type": "int", "required": false, "games": ["San Andreas"] }
+          ]
+        },
+        "mtruck": {
+          "insertAfter": "comprules",
+          "description": "SA Monster truck wheel parameters.",
+          "extraColumns": [
+            { "name": "wheelId", "type": "int", "required": false, "games": ["San Andreas"] },
+            { "name": "wheelScaleFront", "type": "float", "required": false, "games": ["San Andreas"] },
+            { "name": "wheelScaleRear", "type": "float", "required": false, "games": ["San Andreas"] },
+            { "name": "wheelUpgradeClass", "type": "int", "required": false, "games": ["San Andreas"] }
+          ]
+        }
+      },
+      "parseHints": {
+        "discriminatorColumn": "type",
+        "insertAfterFieldDefault": "comprules",
+        "preserveExtraTokens": true,
+        "hexFields": ["comprules"]
+      }
+    },
+    "hier": {
+    "supportedGames": ["San Andreas"],
+    "primaryKeys": ["id"],
+    "description": "Clump objects for cutscenes (SA). Format partially documented.",
+    "columns": [
+    { "name": "id", "type": "int", "required": true },
+    { "name": "model", "type": "string", "required": true },
+    { "name": "texture", "type": "string", "required": true },
+    { "name": "nullField", "type": "string", "required": false, "description": "Literal 'null' placeholder in many files." },
+    { "name": "value", "type": "float", "required": false, "description": "Float value commonly 2000.00; semantics unknown." }
+    ],
+    "parseHints": {
+    "note": "Preserve raw tokens if line deviates from this shape."
+    }
+    },
+    "txdp": {
+    "supportedGames": ["San Andreas"],
+    "primaryKeys": [],
+    "description": "Texture parent mapping: primary TXD -> parent TXD.",
+    "columns": [
+    { "name": "textureName", "type": "string", "required": true },
+    { "name": "textureParentName", "type": "string", "required": true }
+    ]
+    },
+    "2dfx": {
+    "supportedGames": ["GTA III", "Vice City", "San Andreas (legacy)"],
+    "primaryKeys": [],
+    "description": "Lights, particles and ped behaviors attached to objects. Several type-dependent sub-formats.",
+    "commonPrefix": [
+    { "name": "objectId", "type": "int", "required": true },
+    { "name": "x", "type": "float", "required": true },
+    { "name": "y", "type": "float", "required": true },
+    { "name": "z", "type": "float", "required": true },
+    { "name": "r", "type": "int", "required": true },
+    { "name": "g", "type": "int", "required": true },
+    { "name": "b", "type": "int", "required": true },
+    { "name": "unknownA", "type": "int", "required": false, "description": "Documented values: 0,63,120,200 depending on type" },
+    { "name": "type", "type": "int", "required": true, "description": "1=Light, 2=Particle, 3=Ped (VC only), 4=SunRef (VC only)" }
+    ],
+    "types": {
+    "1": {
+    "id": 1,
+    "name": "light",
+    "columns": [
+    { "name": "corona", "type": "string", "required": true },
+    { "name": "shadow", "type": "string", "required": false },
+    { "name": "distance", "type": "float", "required": false },
+    { "name": "outerRange", "type": "float", "required": false },
+    { "name": "size", "type": "float", "required": false, "description": "0 means no visible corona" },
+    { "name": "innerRange", "type": "float", "required": false },
+    { "name": "ideFlag", "type": "int", "required": false },
+    { "name": "wet", "type": "int", "required": false },
+    { "name": "flare", "type": "int", "required": false },
+    { "name": "dust", "type": "int", "required": false }
+    ]
+    },
+    "2": {
+    "id": 2,
+    "name": "particle",
+    "columns": [
+    { "name": "particleName", "type": "string", "required": true },
+    { "name": "unk1", "type": "string", "required": false },
+    { "name": "unk2", "type": "string", "required": false },
+    { "name": "unk3", "type": "string", "required": false },
+    { "name": "size", "type": "float", "required": false }
+    ]
+    },
+    "3": {
+    "id": 3,
+    "name": "ped_vc",
+    "games": ["Vice City"],
+    "columns": [
+    { "name": "behavior", "type": "string", "required": true },
+    { "name": "unk1", "type": "string", "required": false },
+    { "name": "unk2", "type": "string", "required": false },
+    { "name": "unk3", "type": "string", "required": false },
+    { "name": "rotX", "type": "float", "required": false },
+    { "name": "rotY", "type": "float", "required": false },
+    { "name": "rotZ", "type": "float", "required": false }
+    ]
+    },
+    "4": {
+    "id": 4,
+    "name": "sunref_vc",
+    "games": ["Vice City"],
+    "columns": []
+    }
+    },
+    "parseHints": {
+    "note": "Read commonPrefix first. After reading 'type', parse the corresponding type's columns. Preserve leftover tokens in extraFields."
+    }
+    },
+    "path": {
+    "supportedGames": ["GTA III"],
+    "primaryKeys": [],
+    "description": "Ped and car paths attached to objects (GTA III). Complex, multi-line entries — treat as raw or use a specialized path editor.",
+    "columns": [
+    { "name": "raw", "type": "string", "required": true, "description": "Preserve entire path entry as raw token(s). Editing recommended only through specialized tools." }
+    ],
+    "parseHints": {
+    "note": "PATH entries are complex; prefer to store verbatim and offer a 'edit raw' mode. Consider linking to an external path editor."
+    }
+    }
+    }
+    }    
+    
+
+    

@@ -106,11 +106,11 @@ class ResponsiveManager:
     def get_button_size(self) -> Tuple[int, int]:
         """Get recommended button size (min_width, height)"""
         if self.breakpoint == "small":
-            return (self.get_scaled_size(60), self.get_scaled_size(22))
+            return (self.get_scaled_size(50), self.get_scaled_size(20))
         elif self.breakpoint == "medium":
-            return (self.get_scaled_size(70), self.get_scaled_size(24))
+            return (self.get_scaled_size(60), self.get_scaled_size(22))
         else:
-            return (self.get_scaled_size(80), self.get_scaled_size(26))
+            return (self.get_scaled_size(65), self.get_scaled_size(24))
     
     def get_panel_width(self) -> Tuple[int, int]:
         """Get recommended panel width (min, max)"""
@@ -172,11 +172,11 @@ class ResponsiveManager:
                 "family": "'Fira Code', 'Consolas', 'Monaco', 'Cascadia Code', monospace"
             },
             "menu": {
-                "size": self.get_scaled_font_size(14),
+                "size": self.get_scaled_font_size(12),
                 "weight": "normal"
             },
             "status": {
-                "size": self.get_scaled_font_size(14),
+                "size": self.get_scaled_font_size(12),
                 "weight": "normal"
             }
         }
