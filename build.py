@@ -95,6 +95,14 @@ def build_executable_comprehensive():
     else:
         print(f"[WARNING] Icon file not found: {icon_file}, building without icon")
 
+    # Ensure schema.json for IDE Editor is bundled as data
+    schema_file = project_root / "application" / "tools" / "IDE_Editor" / "schema.json"
+    if schema_file.exists():
+        # Map to the same relative path inside the dist so Path(__file__).parent / 'schema.json' resolves
+        nuitka_cmd.insert(-1, f"--include-data-file={schema_file}=application/tools/IDE_Editor/schema.json")
+    else:
+        print(f"[WARNING] schema.json not found at: {schema_file}. IDE Editor may not work in the build.")
+
     print("Running Nuitka command...")
     print(f"Command: {' '.join(nuitka_cmd)}")
     
