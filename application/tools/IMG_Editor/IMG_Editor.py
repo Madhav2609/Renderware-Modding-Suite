@@ -214,12 +214,21 @@ class IMGEntriesTable(QTableWidget):
         self._editing_item = None
         self._old_name = None
         
-        # Initialize context menu handler
-        self.context_menu_handler = IMGTableContextMenu(self)
+        # Initialize context menu handler (will be set by parent)
+        self.context_menu_handler = None
         
         # Enable context menu
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self.customContextMenuRequested.connect(self.context_menu_handler.show_context_menu)
+        self.customContextMenuRequested.connect(self._show_context_menu)
+    
+    def set_context_menu_handler(self, handler):
+        """Set the context menu handler"""
+        self.context_menu_handler = handler
+    
+    def _show_context_menu(self, position):
+        """Show context menu if handler is set"""
+        if self.context_menu_handler:
+            self.context_menu_handler.show_context_menu(position)
     
     def _on_item_double_clicked(self, item):
         """Handle double-click on entry"""
@@ -521,6 +530,14 @@ class IMGArchiveTab(QWidget):
         self.entries_table.entry_double_clicked.connect(self._on_entry_double_clicked)
         self.entries_table.entry_selected.connect(self._on_entry_selected)
         self.entries_table.entry_renamed.connect(self._on_entry_renamed)
+        
+        # Initialize context menu handler with controller
+        context_menu_handler = IMGTableContextMenu(self.entries_table, self.parent_tool.img_controller)
+        self.entries_table.set_context_menu_handler(context_menu_handler)
+        
+        # Connect integration signals if available
+        if hasattr(context_menu_handler, 'integration') and context_menu_handler.integration:
+            context_menu_handler.integration.tool_open_requested.connect(self.parent_tool._on_tool_open_requested)
         layout.addWidget(self.entries_table)        
     
     def update_display(self):
@@ -634,6 +651,22 @@ class ImgEditorTool(QWidget):
         self.img_controller.operation_completed.connect(self._on_operation_completed)
         
         self.setup_ui()
+    
+    def _on_tool_open_requested(self, tool_name, params):
+        """Handle tool open request from integration"""
+        # Get the content area from the main window and open the tool directly
+        main_window = self.window()
+        if hasattr(main_window, 'content_area'):
+            try:
+                main_window.content_area.show_tool_interface(tool_name, params)
+                debug_logger.info(LogCategory.TOOL, "Tool opened successfully", 
+                                {"tool": tool_name, "params": params})
+            except Exception as e:
+                debug_logger.error(LogCategory.TOOL, "Failed to open tool", 
+                                 {"tool": tool_name, "error": str(e)})
+        else:
+            debug_logger.error(LogCategory.TOOL, "Could not find content area to open tool", 
+                             {"tool": tool_name})
     
     def _create_img_editor_adapter(self):
         """Create an adapter object that provides the interface expected by UI handlers"""

@@ -293,8 +293,15 @@ class ContentArea(QWidget):
         # Check if tool tab already exists
         for i in range(self.tab_widget.count()):
             if self.tab_widget.tabText(i) == tab_title:
-                # Tool tab already exists, just switch to it
+                # Tool tab already exists, switch to it and load new file if specified
                 self.tab_widget.setCurrentIndex(i)
+                
+                # If we have a file to load, load it in the existing tool
+                if params.get('file_path') and params.get('auto_load'):
+                    existing_widget = self.tab_widget.widget(i)
+                    if hasattr(existing_widget, 'load_file'):
+                        existing_widget.load_file(params['file_path'])
+                
                 return
         
         # Create new tool interface widget
@@ -318,6 +325,12 @@ class ContentArea(QWidget):
                 # Connect tool signals to handle actions
                 if hasattr(tool_widget, 'tool_action'):
                     tool_widget.tool_action.connect(self.handle_tool_action)
+                
+                # Handle auto-loading files if specified in params
+                if params.get('file_path') and params.get('auto_load'):
+                    if hasattr(tool_widget, 'load_file'):
+                        tool_widget.load_file(params['file_path'])
+                
                 return tool_widget
         
         # Fallback for tools not yet implemented
