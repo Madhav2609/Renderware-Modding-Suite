@@ -569,6 +569,7 @@ class IMGController(QObject):
     operation_progress = pyqtSignal(int, str)  # Signal for long operations: progress, message
     operation_completed = pyqtSignal(bool, str)  # Signal for operation completion: success, message
     archive_switched = pyqtSignal(object)  # Signal when active archive changes
+    archive_modified = pyqtSignal(str)  # Signal when archive is modified (file_path)
     
     def __init__(self):
         super().__init__()
@@ -674,14 +675,49 @@ class IMGController(QObject):
                 pass
             
             debug_logger.info(LogCategory.TOOL, "IMGController cleanup completed")
-            
         except Exception as e:
-            debug_logger.error(LogCategory.TOOL, f"Error during IMGController cleanup: {e}")
-    
+            debug_logger.log_exception(LogCategory.IMG, "Error during entry deletion", e)
+    def handle_entry_rename(self, entry, new_name):
+        """Handle entry rename in IMG archive"""
+        try:
+            archive = self.get_active_archive()
+            if not archive:
+                return
+                
+            # Validate new name
+            new_name = new_name.strip()
+            if not new_name:
+                from application.common.message_box import message_box
+                message_box.warning("Entry name cannot be empty", "Invalid Name")
+                return
+            
+            # Check for duplicate names
+            existing_names = [e.name.lower() for e in archive.entries if e != entry]
+            if new_name.lower() in existing_names:
+                from application.common.message_box import message_box
+                message_box.warning(f"An entry with the name '{new_name}' already exists", "Duplicate Name")
+                return
+            
+            # Update the entry's name and mark as modified
+            old_name = entry.name
+            entry.name = new_name  # Actually update the name!
+            entry.is_new_entry = True  # Mark as modified for rebuild
+            archive.modified = True
+            
+            # Emit signals to update UI
+            self.entries_updated.emit(archive.entries)
+            self.archive_modified.emit(archive.file_path)
+            
+            debug_logger.info(LogCategory.TOOL, f"Entry renamed from '{old_name}' to '{new_name}'")
+                
+        except Exception as e:
+            debug_logger.error(LogCategory.TOOL, f"Error during entry rename: {e}")
+
     def __del__(self):
         """Destructor to ensure cleanup when the controller is destroyed"""
         try:
             self.cleanup()
+        
         except Exception as e:
             debug_logger.error(LogCategory.TOOL, f"Error in IMGController destructor: {e}")
     

@@ -8,7 +8,7 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                             QTreeWidgetItem, QLineEdit, QComboBox, QProgressBar,
                             QScrollArea, QSizePolicy, QTableWidget, QTableWidgetItem,
                             QHeaderView, QFileDialog, QGridLayout, QTabWidget,
-                            QToolButton, QMenu, QFrame)
+                            QToolButton, QMenu, QFrame, QAbstractItemView)
 from PyQt6.QtCore import Qt, pyqtSignal
 from pathlib import Path
 
@@ -17,6 +17,7 @@ from application.responsive_utils import get_responsive_manager
 from application.styles import ModernDarkTheme
 from .img_controller import IMGController
 from .progress_dialog import IMGProgressPanel
+from .context_menu import IMGTableContextMenu
 from application.debug_system import get_debug_logger, LogCategory
 
 # Module-level debug logger
@@ -153,6 +154,7 @@ class IMGEntriesTable(QTableWidget):
     """Enhanced table widget for IMG entries"""
     entry_double_clicked = pyqtSignal(object)
     entry_selected = pyqtSignal(object)
+    entry_renamed = pyqtSignal(object, str)  # Signal when entry is renamed
 
     def __init__(self, parent=None):
         """Initialize the table with responsive styling"""
@@ -168,6 +170,8 @@ class IMGEntriesTable(QTableWidget):
         self.setAlternatingRowColors(True)
         self.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.setSelectionMode(QTableWidget.SelectionMode.ExtendedSelection)
+        # Prevent user-initiated editing (e.g., double-click). Programmatic edits still allowed.
+        self.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         
         # Auto-resize columns to fill the available space
         header = self.horizontalHeader()
@@ -203,6 +207,19 @@ class IMGEntriesTable(QTableWidget):
         # Connect signals
         self.itemDoubleClicked.connect(self._on_item_double_clicked)
         self.itemSelectionChanged.connect(self._on_selection_changed)
+        self.itemChanged.connect(self._on_item_changed)
+        
+        # Track editing state
+        self._is_editing = False
+        self._editing_item = None
+        self._old_name = None
+        
+        # Initialize context menu handler
+        self.context_menu_handler = IMGTableContextMenu(self)
+        
+        # Enable context menu
+        self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.customContextMenuRequested.connect(self.context_menu_handler.show_context_menu)
     
     def _on_item_double_clicked(self, item):
         """Handle double-click on entry"""
@@ -243,6 +260,7 @@ class IMGEntriesTable(QTableWidget):
             # Set entry data
             name_item = QTableWidgetItem(entry.name)
             name_item.setData(Qt.ItemDataRole.UserRole, entry)  # Store entry object in the item
+            name_item.setFlags(name_item.flags() | Qt.ItemFlag.ItemIsEditable)  # Make name editable
             
             type_item = QTableWidgetItem(entry.type)
             size_item = QTableWidgetItem(f"{entry.actual_size:,}")
@@ -282,6 +300,39 @@ class IMGEntriesTable(QTableWidget):
         
         self.setSortingEnabled(True)
         self.sortByColumn(0, Qt.SortOrder.AscendingOrder)  # Sort by name initially
+    
+    def _on_item_changed(self, item):
+        """Handle item changes (mainly for renaming)"""
+        if not self._is_editing:
+            return
+            
+        # Check if this is the name column
+        if item.column() == 0 and self._editing_item == item:
+            entry = item.data(Qt.ItemDataRole.UserRole)
+            new_name = item.text().strip()
+            
+            if entry and new_name and new_name != self._old_name:
+                # Emit rename signal
+                self.entry_renamed.emit(entry, new_name)
+            elif not new_name or new_name == "":
+                # Restore old name if empty
+                item.setText(self._old_name)
+            
+            # Reset editing state
+            self._is_editing = False
+            self._editing_item = None
+            self._old_name = None
+    
+    def editItem(self, item):
+        """Override to track when editing starts"""
+        if item.column() == 0:  # Only allow editing of name column
+            entry = item.data(Qt.ItemDataRole.UserRole)
+            if entry:
+                self._is_editing = True
+                self._editing_item = item
+                self._old_name = item.text()
+        super().editItem(item)
+    
     
     def apply_filter(self, filter_text=None, filter_type=None, filter_rw_version=None):
         """Apply filter to table entries"""
@@ -469,6 +520,7 @@ class IMGArchiveTab(QWidget):
         self.entries_table = IMGEntriesTable()
         self.entries_table.entry_double_clicked.connect(self._on_entry_double_clicked)
         self.entries_table.entry_selected.connect(self._on_entry_selected)
+        self.entries_table.entry_renamed.connect(self._on_entry_renamed)
         layout.addWidget(self.entries_table)        
     
     def update_display(self):
@@ -521,6 +573,13 @@ class IMGArchiveTab(QWidget):
     def _on_entry_selected(self, entries):
         """Handle entry selection"""
         self.entries_selected.emit(entries)
+    
+    def _on_entry_renamed(self, entry, new_name):
+        """Handle entry rename request"""
+        if self.parent_tool and self.parent_tool.img_controller:
+            self.parent_tool.img_controller.handle_entry_rename(entry, new_name)
+            # Update the display after rename
+            self.update_display()
     
     def cleanup(self):
         """Clean up resources when the archive tab is closed"""
