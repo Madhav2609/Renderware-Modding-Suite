@@ -5,7 +5,7 @@ These methods implement the direct UI interactions that connect the ImgEditorToo
 
 from PyQt6.QtWidgets import QFileDialog, QDialog, QRadioButton, QDialogButtonBox, QVBoxLayout, QMessageBox, QCheckBox, QComboBox, QLabel, QHBoxLayout, QPushButton
 from application.common.message_box import message_box
-from application.tools.IMG_Editor.IMG_Editor import IMGArchiveTab
+from application.tools.IMG_Editor.archive_tab import IMGArchiveTab
 
 def _open_img_file(self):
     """Open a single IMG file"""
