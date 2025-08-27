@@ -8,9 +8,11 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                             QTreeWidgetItem, QLineEdit, QComboBox, QProgressBar,
                             QScrollArea, QSizePolicy, QTableWidget, QTableWidgetItem,
                             QHeaderView, QFileDialog, QGridLayout, QTabWidget,
-                            QToolButton, QMenu, QFrame, QAbstractItemView)
-from PyQt6.QtCore import Qt, pyqtSignal
+                            QToolButton, QMenu, QFrame, QAbstractItemView, QApplication)
+from PyQt6.QtCore import Qt, pyqtSignal, QMimeData, QUrl
+from PyQt6.QtGui import QDrag
 from pathlib import Path
+import os
 
 from application.common.message_box import message_box
 from application.responsive_utils import get_responsive_manager
@@ -18,6 +20,7 @@ from application.styles import ModernDarkTheme
 from .img_controller import IMGController
 from .progress_dialog import IMGProgressPanel
 from .context_menu import IMGTableContextMenu
+from .drag_drop_handler import DragDropHandler, DragDropMixin
 from application.debug_system import get_debug_logger, LogCategory
 
 # Module-level debug logger
@@ -150,15 +153,19 @@ class IMGFileInfoPanel(QGroupBox):
 
 
 
-class IMGEntriesTable(QTableWidget):
-    """Enhanced table widget for IMG entries"""
+class IMGEntriesTable(QTableWidget, DragDropMixin):
+    """Enhanced table widget for IMG entries with drag and drop support"""
     entry_double_clicked = pyqtSignal(object)
     entry_selected = pyqtSignal(object)
     entry_renamed = pyqtSignal(object, str)  # Signal when entry is renamed
+    files_dropped = pyqtSignal(list)  # Signal for dropped files
+    entries_dropped = pyqtSignal(list, object)  # Signal for dropped entries
 
     def __init__(self, parent=None):
         """Initialize the table with responsive styling"""
-        super().__init__(parent)
+        QTableWidget.__init__(self, parent)
+        DragDropMixin.__init__(self)
+        
         rm = get_responsive_manager()
         fonts = rm.get_font_config()
         spacing = rm.get_spacing_config()
@@ -173,9 +180,20 @@ class IMGEntriesTable(QTableWidget):
         # Prevent user-initiated editing (e.g., double-click). Programmatic edits still allowed.
         self.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         
+        # Enable drag and drop
+        self.setDragEnabled(True)
+        self.setAcceptDrops(True)
+        self.setDragDropMode(QAbstractItemView.DragDropMode.DragDrop)
+        self.setDefaultDropAction(Qt.DropAction.CopyAction)
+        self.setDragDropOverwriteMode(False)
+        
         # Auto-resize columns to fill the available space
         header = self.horizontalHeader()
         header.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        
+        # Initialize drag and drop properties
+        self.current_archive = None
+        self.img_controller = None
             
         # Add responsive styling
         self.setStyleSheet(f"""
@@ -220,6 +238,17 @@ class IMGEntriesTable(QTableWidget):
         # Enable context menu
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.customContextMenuRequested.connect(self._show_context_menu)
+    
+    def setup_drag_drop_support(self, drag_drop_handler, archive, controller):
+        """Setup drag and drop support for this table"""
+        self.current_archive = archive
+        self.img_controller = controller
+        self.setup_drag_drop(drag_drop_handler, accept_files=True, accept_entries=True, enable_dragging=True)
+        
+        # Connect drag and drop signals
+        if drag_drop_handler:
+            drag_drop_handler.files_dropped.connect(self.files_dropped.emit)
+            drag_drop_handler.entries_dropped.connect(self.entries_dropped.emit)
     
     def set_context_menu_handler(self, handler):
         """Set the context menu handler"""
@@ -405,6 +434,250 @@ class IMGEntriesTable(QTableWidget):
                         show_row = False
                 
             self.setRowHidden(row, not show_row)
+    
+    def _get_selected_entries_for_drag(self):
+        """Get selected entries for drag operation"""
+        selected_entries = []
+        for index in self.selectedIndexes():
+            if index.column() == 0:  # Only count each row once
+                entry = self.item(index.row(), 0).data(Qt.ItemDataRole.UserRole)
+                if entry:
+                    selected_entries.append(entry)
+        return selected_entries
+    
+    def keyPressEvent(self, event):
+        """Handle key press events for shortcuts"""
+        # Handle Ctrl+E for export selected entries
+        if (event.key() == Qt.Key.Key_E and 
+            event.modifiers() & Qt.KeyboardModifier.ControlModifier):
+            selected_entries = self._get_selected_entries_for_drag()
+            if selected_entries:
+                export_dir = QFileDialog.getExistingDirectory(
+                    self, 
+                    "Export Selected Entries", 
+                    "", 
+                    QFileDialog.Option.ShowDirsOnly
+                )
+                
+                if export_dir and self.drag_drop_handler:
+                    self.drag_drop_handler.entries_exported.emit(selected_entries, export_dir)
+            return
+        
+        super().keyPressEvent(event)
+    
+    def _handle_entry_drop(self, entries_data):
+        """Handle dropping of IMG entries on this table"""
+        if not self.drag_drop_handler or not self.current_archive:
+            return
+        
+        success = self.drag_drop_handler.handle_entry_drop(entries_data, self.current_archive, self.img_controller)
+        if success:
+            debug_logger.info(LogCategory.UI, "Entry drop handled successfully")
+    
+    def mousePressEvent(self, event):
+        """Handle mouse press for drag initiation"""
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.drag_start_position = event.pos()
+        super().mousePressEvent(event)
+    
+    def mimeTypes(self):
+        """Return supported MIME types for drag operations"""
+        return ["application/x-img-entries", "text/plain"]
+    
+    def mimeData(self, indexes):
+        """Create MIME data for drag operation"""
+        selected_entries = self._get_selected_entries_for_drag()
+        if not selected_entries or not self.drag_drop_handler:
+            return QMimeData()
+        
+        mime_data = QMimeData()
+        
+        # Add IMG entries data for internal transfers
+        entries_data = self.drag_drop_handler._serialize_entries(selected_entries, self.current_archive)
+        mime_data.setData("application/x-img-entries", entries_data)
+        
+        # For external drops, create temporary files and add as URLs
+        try:
+            import tempfile
+            import os
+            from .core.Import_Export import Import_Export
+            
+            # Create temporary directory for exported files
+            temp_dir = tempfile.mkdtemp(prefix="img_drag_")
+            urls = []
+            
+            for entry in selected_entries:
+                try:
+                    # Export entry to temporary file
+                    temp_file_path = Import_Export.export_entry(self.current_archive, entry, output_dir=temp_dir)
+                    urls.append(QUrl.fromLocalFile(temp_file_path))
+                except Exception as e:
+                    debug_logger.log_exception(LogCategory.UI, f"Failed to create temp file for {entry.name}", e)
+            
+            if urls:
+                mime_data.setUrls(urls)
+                # Store temp directory for cleanup
+                mime_data.setData("application/x-temp-dir", temp_dir.encode('utf-8'))
+                
+        except Exception as e:
+            debug_logger.log_exception(LogCategory.UI, "Failed to create temporary files for external drag", e)
+        
+        # Set text representation
+        entry_names = [entry.name for entry in selected_entries]
+        mime_data.setText(f"IMG Entries: {', '.join(entry_names)}")
+        
+        return mime_data
+    
+    def startDrag(self, supportedActions):
+        """Start drag operation for selected entries"""
+        selected_entries = self._get_selected_entries_for_drag()
+        if not selected_entries:
+            return
+            
+        # Check if Ctrl key is pressed for export mode
+        modifiers = QApplication.keyboardModifiers()
+        export_mode = modifiers & Qt.KeyboardModifier.ControlModifier
+        
+        if export_mode:
+            # Export mode - ask user for export directory
+            export_dir = QFileDialog.getExistingDirectory(
+                self, 
+                "Select Export Directory", 
+                "", 
+                QFileDialog.Option.ShowDirsOnly
+            )
+            
+            if export_dir and self.drag_drop_handler:
+                # Trigger export operation
+                self.drag_drop_handler.entries_exported.emit(selected_entries, export_dir)
+            return
+        
+        # Use Qt's built-in drag system with our custom MIME data
+        drag = QDrag(self)
+        mime_data = self.mimeData(self.selectedIndexes())
+        
+        if mime_data and self.drag_drop_handler:
+            drag.setMimeData(mime_data)
+            
+            # Create drag pixmap
+            pixmap = self.drag_drop_handler.create_drag_pixmap(selected_entries)
+            drag.setPixmap(pixmap)
+            drag.setHotSpot(pixmap.rect().center())
+            
+            # Execute drag
+            result = drag.exec(supportedActions)
+            
+            # Clean up temporary files after drag operation
+            self._cleanup_temp_files(mime_data)
+            
+            # Log result
+            result_str = "CopyAction" if result == Qt.DropAction.CopyAction else \
+                        "MoveAction" if result == Qt.DropAction.MoveAction else \
+                        "IgnoreAction" if result == Qt.DropAction.IgnoreAction else str(result)
+            
+            debug_logger.info(LogCategory.UI, "Table drag operation completed", 
+                            {"entries_count": len(selected_entries), "result": result_str})
+    
+    def _cleanup_temp_files(self, mime_data):
+        """Clean up temporary files created for external drag operations"""
+        try:
+            if mime_data.hasFormat("application/x-temp-dir"):
+                temp_dir_data = mime_data.data("application/x-temp-dir")
+                temp_dir = temp_dir_data.data().decode('utf-8')
+                
+                if temp_dir and os.path.exists(temp_dir):
+                    import shutil
+                    shutil.rmtree(temp_dir, ignore_errors=True)
+                    debug_logger.debug(LogCategory.UI, "Cleaned up temporary drag files", 
+                                     {"temp_dir": temp_dir})
+        except Exception as e:
+            debug_logger.log_exception(LogCategory.UI, "Failed to cleanup temporary drag files", e)
+    
+    def mouseMoveEvent(self, event):
+        """Handle mouse move for drag initiation"""
+        if not (event.buttons() & Qt.MouseButton.LeftButton):
+            super().mouseMoveEvent(event)
+            return
+        
+        if not hasattr(self, 'drag_start_position'):
+            super().mouseMoveEvent(event)
+            return
+        
+        # Check if we've moved far enough to start a drag
+        if ((event.pos() - self.drag_start_position).manhattanLength() < 
+            QApplication.startDragDistance()):
+            super().mouseMoveEvent(event)
+            return
+        
+        # Start drag operation if we have selected entries
+        selected_entries = self._get_selected_entries_for_drag()
+        if selected_entries and self.drag_drop_handler:
+            self.startDrag(Qt.DropAction.CopyAction | Qt.DropAction.MoveAction)
+        
+        super().mouseMoveEvent(event)
+    
+    def dragEnterEvent(self, event):
+        """Handle drag enter event"""
+        if not self.drag_drop_handler:
+            event.ignore()
+            return
+        
+        mime_data = event.mimeData()
+        
+        # Check for file drops
+        if mime_data.hasUrls():
+            for url in mime_data.urls():
+                if url.isLocalFile():
+                    file_path = url.toLocalFile()
+                    if (os.path.isfile(file_path) and 
+                        self.drag_drop_handler.is_supported_file(file_path)) or os.path.isdir(file_path):
+                        event.acceptProposedAction()
+                        return
+        
+        # Check for entry drops
+        if mime_data.hasFormat("application/x-img-entries"):
+            event.acceptProposedAction()
+            return
+        
+        event.ignore()
+    
+    def dragMoveEvent(self, event):
+        """Handle drag move event"""
+        if self.drag_drop_handler:
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+    
+    def dropEvent(self, event):
+        """Handle drop event"""
+        if not self.drag_drop_handler:
+            event.ignore()
+            return
+        
+        mime_data = event.mimeData()
+        
+        # Handle file drops
+        if mime_data.hasUrls():
+            file_paths = []
+            for url in mime_data.urls():
+                if url.isLocalFile():
+                    file_path = url.toLocalFile()
+                    file_paths.append(file_path)
+            
+            if file_paths:
+                # Emit signal instead of calling handler directly to avoid duplicate imports
+                self.files_dropped.emit(file_paths)
+                event.acceptProposedAction()
+                return
+        
+        # Handle entry drops
+        if mime_data.hasFormat("application/x-img-entries"):
+            entries_data = mime_data.data("application/x-img-entries")
+            self._handle_entry_drop(entries_data)
+            event.acceptProposedAction()
+            return
+        
+        event.ignore()
 
 
 class FilterPanel(QWidget):
@@ -531,6 +804,18 @@ class IMGArchiveTab(QWidget):
         self.entries_table.entry_selected.connect(self._on_entry_selected)
         self.entries_table.entry_renamed.connect(self._on_entry_renamed)
         
+        # Setup drag and drop for the table
+        if hasattr(self.parent_tool, 'drag_drop_handler'):
+            self.entries_table.setup_drag_drop_support(
+                self.parent_tool.drag_drop_handler, 
+                self.img_archive, 
+                self.parent_tool.img_controller
+            )
+            
+            # Connect drag and drop signals
+            self.entries_table.files_dropped.connect(self._on_files_dropped)
+            self.entries_table.entries_dropped.connect(self._on_entries_dropped)
+        
         # Initialize context menu handler with controller
         context_menu_handler = IMGTableContextMenu(self.entries_table, self.parent_tool.img_controller)
         self.entries_table.set_context_menu_handler(context_menu_handler)
@@ -598,6 +883,96 @@ class IMGArchiveTab(QWidget):
             # Update the display after rename
             self.update_display()
     
+    def _on_files_dropped(self, file_paths):
+        """Handle files dropped on this archive tab"""
+        if not self.parent_tool or not self.parent_tool.img_controller:
+            return
+        
+        try:
+            debug_logger.info(LogCategory.UI, "Files dropped on archive tab", 
+                            {"file_count": len(file_paths), "archive": self.img_archive.file_path})
+            
+            # Use the IMG controller's import method with progress
+            # Start progress panel for import
+            if hasattr(self.parent_tool, 'progress_panel'):
+                self.parent_tool.progress_panel.start_operation(f"Importing {len(file_paths)} files")
+            
+            success, message = self.parent_tool.img_controller.import_multiple_files(file_paths)
+            
+            if success:
+                message_box.info("Files imported successfully!", "Import Complete", self)
+                self.update_display()  # Refresh the display
+                self.archive_modified.emit(self.img_archive.file_path)
+            else:
+                message_box.error(f"Import failed: {message}", "Import Error", self)
+                
+        except Exception as e:
+            debug_logger.log_exception(LogCategory.UI, "Error handling file drop", e)
+            message_box.error(f"Error importing files: {str(e)}", "Import Error", self)
+    
+    def _on_entries_dropped(self, entries, target_archive):
+        """Handle entries dropped from another archive"""
+        if not self.parent_tool or not self.parent_tool.img_controller:
+            return
+        
+        if target_archive != self.img_archive:
+            debug_logger.warning(LogCategory.UI, "Entry drop target mismatch")
+            return
+        
+        try:
+            debug_logger.info(LogCategory.UI, "Entries dropped between archives", 
+                            {"entry_count": len(entries), "target": target_archive.file_path})
+            
+            # Use a more efficient approach: export entries to temp directory then import
+            import tempfile
+            import shutil
+            
+            with tempfile.TemporaryDirectory() as temp_dir:
+                # Export entries from source archive
+                exported_files = []
+                failed_exports = []
+                
+                for entry in entries:
+                    try:
+                        # Find source archive
+                        source_archive = None
+                        for archive in self.parent_tool.img_controller.archives:
+                            if archive.get_entry_by_name(entry.name) == entry:
+                                source_archive = archive
+                                break
+                        
+                        if source_archive:
+                            from .core.Import_Export import Import_Export
+                            exported_path = Import_Export.export_entry(source_archive, entry, output_dir=temp_dir)
+                            exported_files.append(exported_path)
+                        else:
+                            failed_exports.append(entry.name)
+                            
+                    except Exception as e:
+                        debug_logger.log_exception(LogCategory.UI, f"Error exporting entry {entry.name}", e)
+                        failed_exports.append(entry.name)
+                
+                # Import exported files to target archive
+                if exported_files:
+                    success, message = self.parent_tool.img_controller.import_multiple_files(exported_files)
+                    
+                    if success:
+                        message_box.info(f"Successfully transferred {len(exported_files)} entries.", 
+                                       "Transfer Complete", self)
+                        self.update_display()
+                        self.archive_modified.emit(target_archive.file_path)
+                    else:
+                        message_box.error(f"Failed to import transferred entries: {message}", 
+                                        "Transfer Error", self)
+                
+                if failed_exports:
+                    message_box.warning(f"Failed to export {len(failed_exports)} entries: {', '.join(failed_exports[:5])}{'...' if len(failed_exports) > 5 else ''}", 
+                                      "Transfer Warning", self)
+                
+        except Exception as e:
+            debug_logger.log_exception(LogCategory.UI, "Error handling entry drop", e)
+            message_box.error(f"Error transferring entries: {str(e)}", "Transfer Error", self)
+    
     def cleanup(self):
         """Clean up resources when the archive tab is closed"""
         try:
@@ -634,6 +1009,9 @@ class ImgEditorTool(QWidget):
         self.img_controller = IMGController()
         self.current_archive_tab = None
         
+        # Initialize drag and drop handler
+        self.drag_drop_handler = DragDropHandler(self)
+        
         # Create compatibility layer for UI interaction handlers
         self.img_editor = self._create_img_editor_adapter()
         
@@ -650,7 +1028,156 @@ class ImgEditorTool(QWidget):
         self.img_controller.operation_progress.connect(self._on_operation_progress)
         self.img_controller.operation_completed.connect(self._on_operation_completed)
         
+        # Connect drag and drop signals
+        self.drag_drop_handler.files_dropped.connect(self._on_global_files_dropped)
+        self.drag_drop_handler.entries_dropped.connect(self._on_global_entries_dropped)
+        self.drag_drop_handler.entries_exported.connect(self._on_global_entries_exported)
+        
         self.setup_ui()
+    
+    def _on_global_files_dropped(self, file_paths):
+        """Handle files dropped globally on the IMG Editor"""
+        if not self.current_archive_tab:
+            # No archive open, try to open the first file as an IMG if it's an IMG file
+            for file_path in file_paths:
+                if file_path.lower().endswith('.img'):
+                    try:
+                        self.open_archive(file_path)
+                        # Remove the IMG file from the list and import the rest
+                        file_paths.remove(file_path)
+                        break
+                    except Exception as e:
+                        debug_logger.log_exception(LogCategory.UI, f"Failed to open IMG file {file_path}", e)
+            
+            if not self.current_archive_tab:
+                message_box.warning("Please open an IMG archive first before importing files.", 
+                                  "No Archive Open", self)
+                return
+        
+        # Import remaining files to current archive
+        if file_paths:
+            self.current_archive_tab._on_files_dropped(file_paths)
+    
+    def _on_global_entries_dropped(self, entries, target_archive):
+        """Handle entries dropped globally between archives"""
+        # Find the tab for the target archive
+        target_tab = None
+        for i in range(self.archive_tabs.count()):
+            tab = self.archive_tabs.widget(i)
+            if hasattr(tab, 'img_archive') and tab.img_archive == target_archive:
+                target_tab = tab
+                break
+        
+        if target_tab:
+            target_tab._on_entries_dropped(entries, target_archive)
+        else:
+            debug_logger.error(LogCategory.UI, "Target archive tab not found for entry drop")
+    
+    def _on_global_entries_exported(self, entries, export_directory):
+        """Handle entries exported to external directory"""
+        try:
+            debug_logger.info(LogCategory.UI, "Exporting entries to directory", 
+                            {"entry_count": len(entries), "export_dir": export_directory})
+            
+            # Find the source archive for the entries
+            source_archive = None
+            for i in range(self.archive_tabs.count()):
+                tab = self.archive_tabs.widget(i)
+                if hasattr(tab, 'img_archive') and tab.img_archive:
+                    # Check if any of the entries belong to this archive
+                    for entry in entries:
+                        if tab.img_archive.get_entry_by_name(entry.name) == entry:
+                            source_archive = tab.img_archive
+                            break
+                    if source_archive:
+                        break
+            
+            if not source_archive:
+                message_box.error("Could not find source archive for exported entries.", 
+                                "Export Error", self)
+                return
+            
+            # Start export operation using the controller
+            operation_data = {
+                'output_dir': export_directory,
+                'selected_entries': entries,
+                'img_archive': source_archive
+            }
+            
+            success, message = self.img_controller.start_operation("export_selected", operation_data)
+            
+            if not success:
+                message_box.error(f"Failed to start export operation: {message}", 
+                                "Export Error", self)
+            
+        except Exception as e:
+            debug_logger.log_exception(LogCategory.UI, "Error handling global entry export", e)
+            message_box.error(f"Error exporting entries: {str(e)}", "Export Error", self)
+    
+    def _tab_widget_drag_enter_event(self, event):
+        """Handle drag enter event on tab widget"""
+        if self.drag_drop_handler:
+            mime_data = event.mimeData()
+            if (mime_data.hasUrls() or mime_data.hasFormat("application/x-img-entries")):
+                event.acceptProposedAction()
+            else:
+                event.ignore()
+        else:
+            event.ignore()
+    
+    def _tab_widget_drag_move_event(self, event):
+        """Handle drag move event on tab widget"""
+        if self.drag_drop_handler:
+            event.acceptProposedAction()
+        else:
+            event.ignore()
+    
+    def _tab_widget_drop_event(self, event):
+        """Handle drop event on tab widget"""
+        if not self.drag_drop_handler:
+            event.ignore()
+            return
+        
+        # Get the tab at the drop position
+        tab_bar = self.archive_tabs.tabBar()
+        drop_tab_index = -1
+        
+        for i in range(self.archive_tabs.count()):
+            tab_rect = tab_bar.tabRect(i)
+            if tab_rect.contains(event.position().toPoint()):
+                drop_tab_index = i
+                break
+        
+        if drop_tab_index >= 0:
+            # Switch to the target tab and handle the drop there
+            self.archive_tabs.setCurrentIndex(drop_tab_index)
+            target_tab = self.archive_tabs.widget(drop_tab_index)
+            
+            mime_data = event.mimeData()
+            
+            # Handle file drops
+            if mime_data.hasUrls():
+                file_paths = []
+                for url in mime_data.urls():
+                    if url.isLocalFile():
+                        file_paths.append(url.toLocalFile())
+                
+                if file_paths and hasattr(target_tab, '_on_files_dropped'):
+                    target_tab._on_files_dropped(file_paths)
+                    event.acceptProposedAction()
+                    return
+            
+            # Handle entry drops
+            if mime_data.hasFormat("application/x-img-entries"):
+                entries_data = mime_data.data("application/x-img-entries")
+                if hasattr(target_tab, '_handle_entry_drop'):
+                    target_tab._handle_entry_drop(entries_data)
+                    event.acceptProposedAction()
+                    return
+        
+        # If no specific tab was targeted, handle globally
+        self._on_global_files_dropped([url.toLocalFile() for url in event.mimeData().urls() if url.isLocalFile()])
+        event.acceptProposedAction()
     
     def _on_tool_open_requested(self, tool_name, params):
         """Handle tool open request from integration"""
@@ -934,6 +1461,12 @@ class ImgEditorTool(QWidget):
         self.archive_tabs.setMovable(True)
         self.archive_tabs.tabCloseRequested.connect(self._close_archive_tab)
         self.archive_tabs.currentChanged.connect(self._on_tab_changed)
+        
+        # Enable drag and drop on the tab widget
+        self.archive_tabs.setAcceptDrops(True)
+        self.archive_tabs.dragEnterEvent = self._tab_widget_drag_enter_event
+        self.archive_tabs.dragMoveEvent = self._tab_widget_drag_move_event
+        self.archive_tabs.dropEvent = self._tab_widget_drop_event
         
         # Set responsive tab styling
         rm = get_responsive_manager()
