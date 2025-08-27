@@ -769,6 +769,28 @@ class IDEEditorTool(QWidget):
         except Exception:
             pass
 
+    def load_file(self, file_path: str):
+        """Load a single IDE file programmatically (used by ContentArea auto-load)."""
+        try:
+            if not file_path or not os.path.exists(file_path):
+                message_box.error(f"File not found: {file_path}", "Load Error", self)
+                return
+            abs_path = os.path.abspath(file_path)
+            # Use existing pipeline to parse and render
+            self.add_file_tab(file_path)
+            # Focus the loaded file in the sidebar if present
+            if abs_path in self.opened_files:
+                self.sidebar.setCurrentRow(self.opened_files[abs_path])
+            # Emit loaded signal
+            try:
+                self.file_loaded.emit(abs_path)
+            except Exception:
+                pass
+            debug_logger.info(LogCategory.TOOL, "IDE file loaded via params", {"file_path": abs_path})
+        except Exception as e:
+            debug_logger.log_exception(LogCategory.TOOL, f"Error auto-loading IDE file: {file_path}", e)
+            message_box.error(f"Could not load file: {file_path}\n\n{e}", "Load Error", self)
+
     def open_files(self):
         """Open IDE file(s) using file dialog"""
         files, _ = QFileDialog.getOpenFileNames(

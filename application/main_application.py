@@ -243,6 +243,7 @@ class RenderwareModdingSuite(QMainWindow):
         """Setup signal connections between components"""
         # File Explorer signals
         self.file_explorer.fileSelected.connect(self.load_file)
+        self.file_explorer.openInTool.connect(self.handle_tool_request)
         
         # Tools Panel signals
         self.tools_panel.toolRequested.connect(self.handle_tool_request)
