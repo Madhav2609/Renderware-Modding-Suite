@@ -8,6 +8,9 @@ This file provides both:
 """
 
 import math
+import os
+import struct
+import traceback
 import struct
 import sys
 
@@ -15,7 +18,7 @@ import sys
 from PyQt6 import QtCore, QtGui, QtWidgets
 from PyQt6.QtCore import Qt, pyqtSignal, QUrl, QBuffer, QByteArray 
 
-from PyQt6.QtGui import QAction, QColor, QMatrix4x4
+from PyQt6.QtGui import QAction, QColor, QMatrix4x4, QPixmap, QImage
 from PyQt6.QtWidgets import (
     QApplication,
     QMainWindow,
@@ -50,6 +53,7 @@ from PyQt6.Qt3DExtras import (
     Qt3DWindow,
     QOrbitCameraController,
     QPhongMaterial,
+    QDiffuseMapMaterial,
     QCylinderMesh, # Needed for the axis gizmo
 )
 from PyQt6.Qt3DRender import (
@@ -58,19 +62,51 @@ from PyQt6.Qt3DRender import (
     QMesh,
     QDirectionalLight,
     QGeometryRenderer,
+    QTexture2D,
+    QTextureImage,
+    QAbstractTexture,
+    QTextureDataUpdate,
+    QDepthTest,
+    QCullFace,
+    QAlphaTest,
 )
 
 # Import the DFF parser and the Vector class
 # Prefer in-suite path; fall back to local if directly running outside package
 try:
     from application.common.DFF import dff, Vector, SkinPLG, HAnimPLG, UserData
-except Exception:
+    from application.common.txd import txd, TextureNative
+    print("[DFF Viewer] Using suite imports - TXD support enabled")
+except ImportError as e:
+    print(f"[DFF Viewer] Suite import failed: {e}")
     try:
-        from DFF import dff, Vector, SkinPLG, HAnimPLG, UserData
-    except Exception as e:
-        # Delay QMessageBox usage to suite contexts; here print+exit for CLI
-        print(f"Import Error: {e}")
-        sys.exit(1)
+        # This would be for standalone execution outside the suite
+        from common.DFF import dff, Vector, SkinPLG, HAnimPLG, UserData
+        from common.txd import txd, TextureNative
+        print("[DFF Viewer] Using local common imports - TXD support enabled")
+    except ImportError as e2:
+        print(f"[DFF Viewer] Local import also failed: {e2}")
+        # Try DFF-only mode
+        try:
+            from application.common.DFF import dff, Vector, SkinPLG, HAnimPLG, UserData
+            # Create dummy TXD classes if txd import fails
+            class txd:
+                def __init__(self): 
+                    self.native_textures = []
+                    self.rw_version = 0
+                    self.device_id = 0
+                def load_file(self, path): 
+                    raise Exception("TXD support not available - txd module failed to import")
+            class TextureNative:
+                def __init__(self): 
+                    self.name = "dummy"
+                def to_rgba(self, level=0): return None
+                def get_width(self, level=0): return 0
+                def get_height(self, level=0): return 0
+            print("[DFF Viewer] TXD support disabled - only DFF parsing available")
+        except ImportError as e3:
+            print(f"Import Error: Could not import DFF parser: {e3}")
+            sys.exit(1)
 
 # Suite integrations (safe to import when running inside the app)
 try:
@@ -365,35 +401,33 @@ class Viewer3D(QWidget):
         # and ensure our custom controller takes precedence
         self.view.setActiveFrameGraph(self.view.defaultFrameGraph())
 
-        # --- Enhanced Three-Point Lighting Setup ---
-        # 1. Key Light (main light source)
-        self.key_light_entity = QEntity(self.root)
-        self.key_light = QDirectionalLight(self.key_light_entity)
-        self.key_light.setWorldDirection(QtGui.QVector3D(-0.8, -1.0, -0.6))
-        self.key_light.setColor(QtGui.QColor(255, 255, 245)) # Bright, slightly warm
-        self.key_light.setIntensity(1.0)
-        self.key_light_entity.addComponent(self.key_light)
-
-        # 2. Fill Light (soft light to fill shadows)
+        # --- Balanced Two-Light Setup to prevent translucency while avoiding dark sides ---
+        # Main light - primary illumination
+        self.main_light_entity = QEntity(self.root)
+        self.main_light = QDirectionalLight(self.main_light_entity)
+        self.main_light.setWorldDirection(QtGui.QVector3D(-0.5, -0.7, -0.5))  # Good angle for models
+        self.main_light.setColor(QtGui.QColor(255, 255, 255))  # Pure white light
+        self.main_light.setIntensity(0.8)  # Slightly reduced main intensity
+        self.main_light_entity.addComponent(self.main_light)
+        
+        # Subtle fill light to illuminate dark areas without causing translucency
         self.fill_light_entity = QEntity(self.root)
         self.fill_light = QDirectionalLight(self.fill_light_entity)
-        self.fill_light.setWorldDirection(QtGui.QVector3D(0.8, -0.4, 1.0))
-        self.fill_light.setColor(QtGui.QColor(180, 200, 220)) # Dim, cool
-        self.fill_light.setIntensity(0.4)
+        self.fill_light.setWorldDirection(QtGui.QVector3D(0.5, 0.3, 0.5))  # Opposite direction
+        self.fill_light.setColor(QtGui.QColor(200, 220, 255))  # Slightly cool fill
+        self.fill_light.setIntensity(1.3)  # Increased intensity to better illuminate dark areas
         self.fill_light_entity.addComponent(self.fill_light)
-
-        # 3. Rim Light (to separate the model from the background)
-        self.rim_light_entity = QEntity(self.root)
-        self.rim_light = QDirectionalLight(self.rim_light_entity)
-        self.rim_light.setWorldDirection(QtGui.QVector3D(0.3, 1.0, 0.5))
-        self.rim_light.setColor(QtGui.QColor(150, 150, 150)) # Dim white
-        self.rim_light.setIntensity(0.3)
-        self.rim_light_entity.addComponent(self.rim_light)
 
         # Placeholder for the loaded model
         self.model_entity: QEntity | None = None
         self.original_materials = {} # To store original colors for toggling override
         self.current_dff_path: str | None = None
+        self.current_dff: dff | None = None  # Store reference to loaded DFF file
+        
+        # TXD/Texture support
+        self.current_txd: txd | None = None
+        self.current_txd_path: str | None = None
+        self.texture_cache = {}  # Cache for loaded Qt3D textures
 
     def mousePressEvent(self, event):
         """Handle mouse press events directly."""
@@ -498,6 +532,8 @@ class Viewer3D(QWidget):
             self.model_entity.deleteLater()
             self.model_entity = None
             self.original_materials = {}
+            self.texture_cache.clear()  # Clear texture cache when clearing model
+            self.current_dff = None  # Clear DFF reference
 
     def load_obj(self, path: str):
         self.clear_model()
@@ -524,6 +560,7 @@ class Viewer3D(QWidget):
         try:
             dff_file = dff()
             dff_file.load_file(path)
+            self.current_dff = dff_file  # Store reference for texture name extraction
         except Exception as e:
             QMessageBox.critical(self, "DFF Parse Error", f"Could not parse DFF file: {e}")
             return
@@ -696,7 +733,7 @@ class Viewer3D(QWidget):
                 vertex_byte_array.append(struct.pack('<2f', *uv_tuple))
 
             for tri in geo.triangles:
-                index_byte_array.append(struct.pack('<3H', tri.a, tri.c, tri.b)) # Reverse winding
+                index_byte_array.append(struct.pack('<3H', tri.a, tri.b, tri.c)) # Use original winding order
 
             vertex_buffer = Qt3DBuffer(part_entity)
             vertex_buffer.setData(vertex_byte_array)
@@ -749,20 +786,28 @@ class Viewer3D(QWidget):
 
             renderer = QGeometryRenderer(part_entity)
             renderer.setGeometry(qt_geometry)
+            # Ensure proper rendering settings for solid geometry
+            renderer.setPrimitiveType(QGeometryRenderer.PrimitiveType.Triangles)
 
             transform = QTransform(part_entity)
             # Apply full world transform so children follow hierarchy
             if atomic.frame < len(frame_world_mats):
                 transform.setMatrix(frame_world_mats[atomic.frame])
 
+            # --- Material and Render States ---
+
             material = QPhongMaterial(part_entity)
             material.setAmbient(QtGui.QColor(40, 40, 50)) # Add slight ambient color
-            mat_color = QtGui.QColor(200, 200, 220)
+            mat_color = QtGui.QColor(200, 200, 220, 255)  # Ensure full opacity
             if geo.materials and geo.materials[0].color:
                 c = geo.materials[0].color
-                mat_color.setRgb(c.r, c.g, c.b, c.a)
+                # Force full opacity to prevent translucency
+                mat_color.setRgb(c.r, c.g, c.b, 255)
             
             material.setDiffuse(mat_color)
+            # Ensure material specular is not too bright (can cause transparency effects)
+            material.setSpecular(QtGui.QColor(64, 64, 64, 255))
+            material.setShininess(32.0)
             self.original_materials[id(material)] = {'diffuse': mat_color}
 
             part_entity.addComponent(renderer)
@@ -781,28 +826,254 @@ class Viewer3D(QWidget):
         # Emit the loaded dff file and the new entity map
         self.dff_loaded.emit(dff_file, geometry_entities_map)
 
+    def load_txd(self, path: str):
+        """Load a TXD file to provide textures for the current model."""
+        try:
+            txd_file = txd()
+            txd_file.load_file(path)
+            self.current_txd = txd_file
+            self.current_txd_path = path
+            
+            # Clear texture cache when loading new TXD
+            self.texture_cache.clear()
+            
+            # Apply textures to current model if available
+            self._apply_textures_to_model()
+            
+            print(f"[DFF Viewer] Loaded TXD: {path}")
+            print(f"  Native Textures: {len(txd_file.native_textures)}")
+            
+        except Exception as e:
+            QMessageBox.critical(self, "TXD Load Error", f"Could not load TXD file: {e}")
+            print(f"[DFF Viewer] TXD load error: {e}")
+
+    def _create_qt3d_texture_from_native(self, native_texture: TextureNative) -> QTexture2D | None:
+        """Convert a TXD native texture to Qt3D texture."""
+        try:
+            # Get RGBA data from the native texture
+            rgba_data = native_texture.to_rgba(level=0)
+            if not rgba_data:
+                return None
+                
+            width = native_texture.get_width(0)
+            height = native_texture.get_height(0)
+            
+            print(f"[DFF Viewer] Creating Qt3D texture: {native_texture.name} ({width}x{height})")
+            
+            # Create Qt3D texture with proper initialization for RGBA format
+            texture = QTexture2D()
+            texture.setFormat(QAbstractTexture.TextureFormat.RGBA8_UNorm)  # Use RGBA format for better compatibility
+            texture.setWidth(width)
+            texture.setHeight(height)
+            texture.setLayers(1)
+            texture.setMipLevels(1)
+            texture.setGenerateMipMaps(False)  # Disable mipmaps for now
+            
+            # Create texture image from data
+            texture_image = QTextureImage()
+            
+            # Convert RGBA data to QImage and save temporarily
+            import tempfile
+            import os
+            qimage = QImage(rgba_data, width, height, QImage.Format.Format_RGBA8888)
+            
+            # Create a temporary file to hold the texture
+            temp_dir = tempfile.gettempdir()
+            temp_path = os.path.join(temp_dir, f"dff_viewer_texture_{native_texture.name}_{id(self)}.png")
+            qimage.save(temp_path, "PNG")
+            
+            # Set the texture image source
+            texture_image.setSource(QUrl.fromLocalFile(temp_path))
+            texture.addTextureImage(texture_image)
+            
+            print(f"[DFF Viewer] Successfully created Qt3D texture for {native_texture.name}")
+            return texture
+            
+        except Exception as e:
+            print(f"[DFF Viewer] Error creating Qt3D texture: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
+
+    def _get_required_texture_names(self):
+        """Extract required texture names from the loaded DFF file."""
+        required_textures = []
+        
+        if not hasattr(self, 'current_dff') or not self.current_dff:
+            print("[DFF Viewer] No DFF file loaded to extract texture names")
+            return required_textures
+        
+        try:
+            # Check geometry materials for texture references
+            if hasattr(self.current_dff, 'geometry_list') and self.current_dff.geometry_list:
+                for geometry in self.current_dff.geometry_list:
+                    if hasattr(geometry, 'materials') and geometry.materials:
+                        for material in geometry.materials:
+                            # Check for texture name in material
+                            if hasattr(material, 'texture') and material.texture:
+                                texture_name = material.texture
+                                if texture_name and texture_name not in required_textures:
+                                    required_textures.append(texture_name)
+                                    print(f"[DFF Viewer] Found required texture: {texture_name}")
+                            
+                            # Also check textures array if it exists
+                            if hasattr(material, 'textures') and material.textures:
+                                for tex in material.textures:
+                                    if hasattr(tex, 'name') and tex.name:
+                                        texture_name = tex.name
+                                        if texture_name and texture_name not in required_textures:
+                                            required_textures.append(texture_name)
+                                            print(f"[DFF Viewer] Found required texture: {texture_name}")
+            
+            print(f"[DFF Viewer] Total required textures found: {len(required_textures)}")
+            
+        except Exception as e:
+            print(f"[DFF Viewer] Error extracting texture names: {e}")
+            import traceback
+            traceback.print_exc()
+        
+        return required_textures
+
+    def _apply_textures_to_model(self):
+        """Apply loaded TXD textures to the current DFF model."""
+        if not self.current_txd or not self.model_entity:
+            return
+            
+        try:
+            # Find all geometry renderer entities in the current model
+            renderers = self.model_entity.findChildren(QGeometryRenderer)
+            
+            print(f"[DFF Viewer] Applying textures - found {len(renderers)} geometry renderers, {len(self.current_txd.native_textures)} textures")
+            
+            if not self.current_txd.native_textures:
+                print("[DFF Viewer] No textures in TXD to apply")
+                return
+            
+            # Get required texture names from the DFF materials
+            required_textures = self._get_required_texture_names()
+            print(f"[DFF Viewer] Required textures from DFF: {required_textures}")
+            
+            # Create a mapping of available textures by name
+            available_textures = {tex.name.lower(): tex for tex in self.current_txd.native_textures}
+            print(f"[DFF Viewer] Available textures in TXD: {list(available_textures.keys())}")
+            
+            # Apply textures to geometry renderers by matching required textures
+            applied_count = 0
+            missing_textures = []
+            
+            for i, renderer in enumerate(renderers):
+                # Get the parent entity of this renderer
+                parent_entity = renderer.parent()
+                if not parent_entity:
+                    continue
+                
+                # Try to find the required texture for this geometry
+                required_texture_name = None
+                if i < len(required_textures):
+                    required_texture_name = required_textures[i]
+                elif required_textures:
+                    # If we have fewer required textures than geometries, use the first one
+                    required_texture_name = required_textures[0]
+                
+                if not required_texture_name:
+                    print(f"[DFF Viewer] No required texture found for geometry {i}")
+                    continue
+                
+                # Look for the texture in TXD (case-insensitive)
+                native_texture = available_textures.get(required_texture_name.lower())
+                
+                if not native_texture:
+                    # Texture not found in TXD
+                    missing_texture = required_texture_name
+                    if missing_texture not in missing_textures:
+                        missing_textures.append(missing_texture)
+                        print(f"[DFF Viewer] Missing texture: {missing_texture}")
+                    continue
+                
+                print(f"[DFF Viewer] Applying texture '{native_texture.name}' to geometry {i}")
+                
+                # Create Qt3D texture if not cached
+                if native_texture.name not in self.texture_cache:
+                    qt3d_texture = self._create_qt3d_texture_from_native(native_texture)
+                    if qt3d_texture:
+                        self.texture_cache[native_texture.name] = qt3d_texture
+                
+                # Get texture from cache
+                qt3d_texture = self.texture_cache.get(native_texture.name)
+                if qt3d_texture and isinstance(qt3d_texture, QTexture2D):
+                    # Remove old material and create new textured material
+                    old_materials = parent_entity.findChildren(QPhongMaterial)
+                    for old_mat in old_materials:
+                        parent_entity.removeComponent(old_mat)
+                        old_mat.deleteLater()
+                    
+                    # Create new material with diffuse map
+                    textured_material = QDiffuseMapMaterial()
+                    textured_material.setDiffuse(qt3d_texture)
+                    textured_material.setAmbient(QtGui.QColor(20, 20, 20, 255))  # Darker ambient to avoid washing out texture
+                    textured_material.setSpecular(QtGui.QColor(0, 0, 0, 255))  # No specular highlight for textured surfaces
+                    textured_material.setShininess(2.0)  # Low shininess
+                    
+                    parent_entity.addComponent(textured_material)
+                    applied_count += 1
+                    
+                    print(f"[DFF Viewer] Applied Qt3D texture {native_texture.name} to geometry {i}")
+                else:
+                    print(f"[DFF Viewer] Failed to create/apply texture for {native_texture.name}")
+            
+            # Show messages for missing textures
+            if missing_textures:
+                missing_list = ', '.join(missing_textures)
+                message = f"Missing textures from TXD: {missing_list}. These textures will not be shown."
+                QMessageBox.warning(None, "Missing Textures", message)
+                print(f"[DFF Viewer] Warning: {message}")
+                        
+            print(f"[DFF Viewer] Successfully applied {applied_count} textures to {len(renderers)} geometries")
+                            
+        except Exception as e:
+            print(f"[DFF Viewer] Error applying textures: {e}")
+            import traceback
+            traceback.print_exc()
+
+    def clear_txd(self):
+        """Clear loaded TXD and revert materials to original colors."""
+        self.current_txd = None
+        self.current_txd_path = None
+        self.texture_cache.clear()
+        
+        # Revert materials to original colors by reloading the DFF
+        if self.current_dff_path:
+            print("[DFF Viewer] Reloading DFF to restore original materials")
+            self.load_dff(self.current_dff_path)
+        else:
+            # If no DFF path, just recreate basic materials
+            if self.model_entity:
+                renderers = self.model_entity.findChildren(QGeometryRenderer)
+                for renderer in renderers:
+                    parent_entity = renderer.parent()
+                    if parent_entity:
+                        # Remove any existing materials
+                        old_materials = parent_entity.findChildren(QPhongMaterial) + parent_entity.findChildren(QDiffuseMapMaterial)
+                        for old_mat in old_materials:
+                            parent_entity.removeComponent(old_mat)
+                            old_mat.deleteLater()
+                        
+                        # Create new basic material
+                        material = QPhongMaterial(parent_entity)
+                        material.setDiffuse(QtGui.QColor(200, 200, 220))
+                        material.setAmbient(QtGui.QColor(40, 40, 50))
+                        parent_entity.addComponent(material)
+
     def reload(self):
         """Reload the last loaded DFF file, if any."""
         if self.current_dff_path:
             self.load_dff(self.current_dff_path)
+            # Also reload TXD if one was loaded
+            if self.current_txd_path:
+                self.load_txd(self.current_txd_path)
 
     def set_background_color(self, color: QColor):
         self.view.defaultFrameGraph().setClearColor(color)
-
-    def set_override_material_enabled(self, enabled: bool):
-        if not self.model_entity:
-            return
-            
-        materials = self.model_entity.findChildren(QPhongMaterial)
-        for mat in materials:
-            if enabled:
-                mat.setDiffuse(QtGui.QColor(230, 230, 240))
-            else:
-                original = self.original_materials.get(id(mat))
-                if original:
-                    mat.setDiffuse(original['diffuse'])
-                else:
-                    mat.setDiffuse(QtGui.QColor(200, 200, 220)) # Fallback
 
 
 class CameraDock(QWidget):
@@ -810,7 +1081,6 @@ class CameraDock(QWidget):
     azimuthChanged = pyqtSignal(float)
     elevationChanged = pyqtSignal(float)
     bgColorPicked = pyqtSignal(QColor)
-    overrideMaterialToggled = pyqtSignal(bool)
 
     def __init__(self, parent=None, init_spherical=(8.0, 35.0, 35.0)):
         super().__init__(parent)
@@ -843,10 +1113,6 @@ class CameraDock(QWidget):
         box_el, s_el = labelled_slider("Elevation", -89, 89, int(el0), 1)
         layout.addWidget(box_el)
         s_el.valueChanged.connect(lambda v: self.elevationChanged.emit(float(v)))
-
-        self.chk_override = QCheckBox("Use light override material")
-        self.chk_override.toggled.connect(self.overrideMaterialToggled)
-        layout.addWidget(self.chk_override)
 
         self.btn_bg = QPushButton("Background color…")
         self.btn_bg.clicked.connect(self.pick_bg)
@@ -882,6 +1148,9 @@ class DFFViewerMainWindow(QWidget):
         
         # Initialize with welcome message
         self._show_status("DFF Viewer ready. Use 'Open DFF...' to load a model.")
+        
+        # Hide TXD controls initially
+        self._show_txd_controls(False)
 
     def _setup_ui(self):
         """Setup the main UI layout with responsive design."""
@@ -922,13 +1191,19 @@ class DFFViewerMainWindow(QWidget):
         
         # Control buttons
         self.btn_open = QPushButton("Open DFF...")
+        self.btn_load_txd = QPushButton("Load TXD...")
+        self.btn_clear_txd = QPushButton("Clear TXD")
         self.btn_reload = QPushButton("Reload")
         self.btn_reset_view = QPushButton("Reset View")
         self.btn_background = QPushButton("Background...")
         self.btn_debug = QPushButton("Debug Parse")
         
+        # Initially hide TXD-related buttons until a DFF is loaded
+        self.btn_load_txd.setVisible(False)
+        self.btn_clear_txd.setVisible(False)
+        
         # Style buttons
-        for btn in [self.btn_open, self.btn_reload, self.btn_reset_view, self.btn_background, self.btn_debug]:
+        for btn in [self.btn_open, self.btn_load_txd, self.btn_clear_txd, self.btn_reload, self.btn_reset_view, self.btn_background, self.btn_debug]:
             btn.setStyleSheet(f"""
                 QPushButton {{
                     background-color: {ModernDarkTheme.BACKGROUND_TERTIARY};
@@ -946,9 +1221,12 @@ class DFFViewerMainWindow(QWidget):
             """)
         
         header_layout.addWidget(self.btn_open)
+        header_layout.addWidget(self.btn_load_txd)
+        header_layout.addWidget(self.btn_clear_txd)
         header_layout.addWidget(self.btn_reload)
         header_layout.addWidget(self.btn_reset_view)
         header_layout.addWidget(self.btn_background)
+        header_layout.addWidget(self.btn_debug)
         header_layout.addWidget(self.btn_debug)
     
     def _create_content_area(self):
@@ -986,10 +1264,6 @@ class DFFViewerMainWindow(QWidget):
         self.camera_controls = CameraDock(self, init_spherical=tuple(self.viewer.spherical))
         camera_layout.addWidget(self.camera_controls)
         
-        # Add material override checkbox
-        self.chk_override = QCheckBox("Light override material")
-        camera_layout.addWidget(self.chk_override)
-        
         # Add navigation help
         help_label = QLabel("""<b>Navigation Controls:</b><br>
         • <b>Middle Mouse:</b> Orbit around model<br>
@@ -1001,6 +1275,7 @@ class DFFViewerMainWindow(QWidget):
         help_label.setWordWrap(True)
         help_label.setStyleSheet("QLabel { font-size: 10px; color: #888; padding: 8px; background-color: #2a2a2a; border-radius: 4px; }")
         camera_layout.addWidget(help_label)
+        
         
         parent_layout.addWidget(camera_group)
     
@@ -1031,6 +1306,8 @@ class DFFViewerMainWindow(QWidget):
         """Connect all UI signals."""
         # Button connections
         self.btn_open.clicked.connect(self._on_open_file)
+        self.btn_load_txd.clicked.connect(self._on_load_txd)
+        self.btn_clear_txd.clicked.connect(self._on_clear_txd)
         self.btn_reload.clicked.connect(self.viewer.reload)
         self.btn_reset_view.clicked.connect(self.viewer.reset_view)
         self.btn_background.clicked.connect(self._on_pick_background)
@@ -1041,8 +1318,6 @@ class DFFViewerMainWindow(QWidget):
         self.camera_controls.azimuthChanged.connect(self.viewer.set_camera_azimuth)
         self.camera_controls.elevationChanged.connect(self.viewer.set_camera_elevation)
         self.camera_controls.bgColorPicked.connect(self.viewer.set_background_color)
-        self.camera_controls.overrideMaterialToggled.connect(self.viewer.set_override_material_enabled)
-        self.chk_override.toggled.connect(self.viewer.set_override_material_enabled)
         
         # Viewer connections
         self.viewer.dff_loaded.connect(self._on_dff_loaded)
@@ -1056,6 +1331,16 @@ class DFFViewerMainWindow(QWidget):
         if self.debug:
             self.debug.info(LogCategory.UI, "DFF Viewer status", {"message": message})
     
+    def _show_txd_controls(self, show=True):
+        """Show or hide TXD-related controls based on DFF model state."""
+        self.btn_load_txd.setVisible(show)
+        if not show:
+            # Also hide clear button when hiding TXD controls
+            self.btn_clear_txd.setVisible(False)
+        elif self.viewer.current_txd:
+            # Show clear button if TXD is loaded
+            self.btn_clear_txd.setVisible(True)
+    
     def _on_open_file(self):
         """Handle open file action."""
         path, _ = QFileDialog.getOpenFileName(
@@ -1066,8 +1351,12 @@ class DFFViewerMainWindow(QWidget):
             
             if path.lower().endswith('.dff'):
                 self.viewer.load_dff(path)
+                # Show TXD controls after successful DFF load
+                self._show_txd_controls(True)
             elif path.lower().endswith('.obj'):
                 self.viewer.load_obj(path)
+                # OBJ files don't support TXD textures
+                self._show_txd_controls(False)
             
             self._show_status(f"Loaded: {path}")
             self.tool_action.emit("file_loaded", path)
@@ -1079,6 +1368,41 @@ class DFFViewerMainWindow(QWidget):
             self.viewer.set_background_color(color)
             self.tool_action.emit("background_changed", color.name())
     
+    def _on_load_txd(self):
+        """Handle load TXD action."""
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Load TXD Texture Archive", "", "GTA TXD (*.txd)")
+        if path:
+            self._show_status(f"Loading TXD: {path}")
+            QtWidgets.QApplication.processEvents()
+            
+            self.viewer.load_txd(path)
+            
+            # Update status with TXD info
+            if self.viewer.current_txd:
+                texture_count = len(self.viewer.current_txd.native_textures)
+                self._show_status(f"✔ Loaded TXD: {texture_count} textures from {path}")
+                self.tool_action.emit("txd_loaded", f"{texture_count} textures from {path}")
+                # Show clear TXD button when TXD is successfully loaded
+                self.btn_clear_txd.setVisible(True)
+                # Refresh inspector to show TXD information
+                self._populate_inspector(self.viewer.current_dff, None)
+            else:
+                self._show_status("✗ Failed to load TXD")
+    
+    def _on_clear_txd(self):
+        """Handle clear TXD action."""
+        if self.viewer.current_txd:
+            self.viewer.clear_txd()
+            self._show_status("✔ TXD textures cleared - reverted to original materials")
+            self.tool_action.emit("txd_cleared", "Textures cleared")
+            # Hide clear TXD button after clearing
+            self.btn_clear_txd.setVisible(False)
+            # Refresh inspector to remove TXD information
+            self._populate_inspector(self.viewer.current_dff, None)
+        else:
+            self._show_status("No TXD loaded to clear")
+    
     def _on_dff_loaded(self, dff_file, geo_entity_map):
         """Handle DFF file loaded event."""
         # Update status
@@ -1087,7 +1411,16 @@ class DFFViewerMainWindow(QWidget):
         atomics = len(getattr(dff_file, 'atomic_list', []) or [])
         
         status_text = f"Loaded DFF • Frames: {frames} • Geometries: {geometries} • Atomics: {atomics}"
+        
+        # Add TXD info if available
+        if self.viewer.current_txd:
+            texture_count = len(self.viewer.current_txd.native_textures)
+            status_text += f" • TXD: {texture_count} textures"
+        
         self._show_status(status_text)
+        
+        # Show TXD controls now that a DFF is loaded
+        self._show_txd_controls(True)
         
         # Populate inspector
         self._populate_inspector(dff_file, geo_entity_map)
@@ -1135,11 +1468,18 @@ File: {self.viewer.current_dff_path}"""
             self._show_status(f"✗ Debug failed: {e}")
 
     def load_file(self, file_path):
-        """Load a DFF or OBJ file (external interface)."""
+        """Load a DFF, OBJ, or TXD file (external interface)."""
         if file_path.lower().endswith('.dff'):
             self.viewer.load_dff(file_path)
         elif file_path.lower().endswith('.obj'):
             self.viewer.load_obj(file_path)
+        elif file_path.lower().endswith('.txd'):
+            # Load TXD - requires a DFF to be loaded first
+            if self.viewer.current_dff_path:
+                self.viewer.load_txd(file_path)
+                self._show_status(f"✔ Loaded TXD textures for current model")
+            else:
+                self._show_status("⚠ Load a DFF model first before loading TXD textures")
         else:
             self._show_status(f"Unsupported file format: {file_path}")
     
@@ -1161,11 +1501,32 @@ File: {self.viewer.current_dff_path}"""
         self.item_to_frame_data_map.clear()
 
         if dff_file is None:
+            # If no DFF is loaded, still show TXD information if available
+            if hasattr(self, 'viewer') and self.viewer.current_txd:
+                txd_root = QTreeWidgetItem(self.inspector_tree, [f"TXD Textures ({len(self.viewer.current_txd.native_textures)})"])
+                if self.viewer.current_txd_path:
+                    self._add_tree_child(txd_root, "File Path", self.viewer.current_txd_path)
+                self._add_tree_child(txd_root, "RW Version", f"0x{self.viewer.current_txd.rw_version:X}")
+                self._add_tree_child(txd_root, "Device ID", str(self.viewer.current_txd.device_id))
+                
+                for i, native_tex in enumerate(self.viewer.current_txd.native_textures):
+                    tex_item = self._add_tree_child(txd_root, f"Texture {i}", native_tex.name)
+                    self._add_tree_child(tex_item, "Dimensions", f"{native_tex.get_width(0)}x{native_tex.get_height(0)}")
+                    self._add_tree_child(tex_item, "Depth", f"{native_tex.depth} bits")
+                    self._add_tree_child(tex_item, "Mip Levels", str(native_tex.num_levels))
+                    self._add_tree_child(tex_item, "Platform ID", str(native_tex.platform_id))
+                    self._add_tree_child(tex_item, "D3D Format", f"0x{native_tex.d3d_format:X}")
+                    if hasattr(native_tex, 'mask') and native_tex.mask:
+                        self._add_tree_child(tex_item, "Mask", native_tex.mask)
+                
+                self.inspector_tree.expandToDepth(1)
             return
 
         # --- File Info ---
         info_root = QTreeWidgetItem(self.inspector_tree, ["File Info"])
         self._add_tree_child(info_root, "RW Version", f"0x{dff_file.rw_version:X}")
+        
+        # ... existing DFF processing code ...
         
         # --- Frame List ---
         if dff_file.frame_list:
@@ -1219,7 +1580,25 @@ File: {self.viewer.current_dff_path}"""
                 self._add_tree_child(atomic_item, "Frame Index", atomic.frame)
                 self._add_tree_child(atomic_item, "Geometry Index", atomic.geometry)
                 self._add_tree_child(atomic_item, "Flags", f"0x{atomic.flags:08X}")
-                
+        
+        # --- TXD Information (if loaded) ---
+        if hasattr(self, 'viewer') and self.viewer.current_txd:
+            txd_root = QTreeWidgetItem(self.inspector_tree, [f"TXD Textures ({len(self.viewer.current_txd.native_textures)})"])
+            if self.viewer.current_txd_path:
+                self._add_tree_child(txd_root, "File Path", self.viewer.current_txd_path)
+            self._add_tree_child(txd_root, "RW Version", f"0x{self.viewer.current_txd.rw_version:X}")
+            self._add_tree_child(txd_root, "Device ID", str(self.viewer.current_txd.device_id))
+            
+            for i, native_tex in enumerate(self.viewer.current_txd.native_textures):
+                tex_item = self._add_tree_child(txd_root, f"Texture {i}", native_tex.name)
+                self._add_tree_child(tex_item, "Dimensions", f"{native_tex.get_width(0)}x{native_tex.get_height(0)}")
+                self._add_tree_child(tex_item, "Depth", f"{native_tex.depth} bits")
+                self._add_tree_child(tex_item, "Mip Levels", str(native_tex.num_levels))
+                self._add_tree_child(tex_item, "Platform ID", str(native_tex.platform_id))
+                self._add_tree_child(tex_item, "D3D Format", f"0x{native_tex.d3d_format:X}")
+                if hasattr(native_tex, 'mask') and native_tex.mask:
+                    self._add_tree_child(tex_item, "Mask", native_tex.mask)
+        
         self.inspector_tree.expandToDepth(1)
     
     def cleanup(self):
@@ -1367,88 +1746,27 @@ class DFFViewerTool(QWidget):
         """Clean up resources."""
         if hasattr(self.main_viewer, 'cleanup'):
             self.main_viewer.cleanup()
-
-
-
-
-# For backwards compatibility, keep the old MainWindow class as a standalone option
-class MainWindow(QMainWindow):
-    """Standalone DFF Viewer window for direct execution."""
-    def __init__(self):
-        super().__init__()
-        self.setWindowTitle("Qt3D DFF/OBJ Viewer – Interactive")
-        self.resize(1600, 900)
-        
-        # Use the new main viewer widget as central widget
-        self.viewer_widget = DFFViewerMainWindow(self)
-        self.setCentralWidget(self.viewer_widget)
-        
-        # Add a simple menu bar
-        self._create_menu()
-        
-        self.statusBar().showMessage("Ready. Use the viewer controls to load a DFF or OBJ model.")
     
-    def _create_menu(self):
-        """Create a simple menu bar."""
-        menubar = self.menuBar()
-        
-        # File menu
-        file_menu = menubar.addMenu('File')
-        
-        # Open action
-        open_action = QAction('Open...', self)
-        open_action.setShortcut('Ctrl+O')
-        open_action.triggered.connect(self.viewer_widget._on_open_file)
-        file_menu.addAction(open_action)
-        
-        file_menu.addSeparator()
-        
-        # Exit action
-        exit_action = QAction('Exit', self)
-        exit_action.setShortcut('Ctrl+Q')
-        exit_action.triggered.connect(self.close)
-        file_menu.addAction(exit_action)
-        
-        # View menu
-        view_menu = menubar.addMenu('View')
-        
-        # Reset view action
-        reset_action = QAction('Reset View', self)
-        reset_action.setShortcut('R')
-        reset_action.triggered.connect(self.viewer_widget.viewer.reset_view)
-        view_menu.addAction(reset_action)
-        
-        # Background action
-        bg_action = QAction('Background...', self)
-        bg_action.triggered.connect(self.viewer_widget._on_pick_background)
-        view_menu.addAction(bg_action)
-        
-        # Help menu
-        help_menu = menubar.addMenu('Help')
-        
-        # About action
-        about_action = QAction('About', self)
-        about_action.triggered.connect(self._show_about)
-        help_menu.addAction(about_action)
+    def load_txd(self, file_path):
+        """Load a TXD file for the current model."""
+        if hasattr(self.main_viewer, 'viewer'):
+            self.main_viewer.viewer.load_txd(file_path)
     
-    def _show_about(self):
-        """Show about dialog."""
-        QMessageBox.information(self, "About Qt3D DFF/OBJ Viewer",
-            ("<b>Qt3D DFF/OBJ Viewer</b><br>"
-             "A viewer for .dff and .obj meshes built with PyQt6 + Qt3D.<br><br>"
-             "Controls:<br>"
-             "• Left-drag: orbit<br>"
-             "• Middle-drag / Shift+Left: pan<br>"
-             "• Wheel: zoom<br><br>"
-             "Use the 'Open DFF...' button to load a model."))
+    def clear_txd(self):
+        """Clear the currently loaded TXD textures."""
+        if hasattr(self.main_viewer, 'viewer'):
+            self.main_viewer.viewer.clear_txd()
+    
+    def get_current_txd(self):
+        """Get the currently loaded TXD file path."""
+        if hasattr(self.main_viewer, 'viewer'):
+            return getattr(self.main_viewer.viewer, 'current_txd_path', None)
+        return None
+    
+    def has_txd_support(self):
+        """Check if TXD support is available."""
+        return True
 
 
-def main():
-    """Main entry point for standalone execution."""
-    app = QApplication(sys.argv)
-    win = MainWindow()
-    win.show()
-    sys.exit(app.exec())
 
-if __name__ == "__main__":
-    main()
+
