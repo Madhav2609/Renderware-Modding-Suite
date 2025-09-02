@@ -53,7 +53,7 @@ class ToolsPanel(QWidget):
         rm = get_responsive_manager()
         spacing = rm.get_spacing_config()
         
-        file_group = QGroupBox("📁 File Format Editors")
+        file_group = QGroupBox("File Format Editors")
         file_layout = QVBoxLayout()
         file_layout.setSpacing(spacing['small'])
         
@@ -63,7 +63,7 @@ class ToolsPanel(QWidget):
         img_btn.clicked.connect(lambda: self.toolRequested.emit("IMG_Editor", {}))
         
         # TXD Editor
-        txd_btn = QPushButton("�️ TXD Editor")
+        txd_btn = QPushButton("🗃️ TXD Editor")
         txd_btn.setToolTip("Edit texture dictionary files")
         txd_btn.clicked.connect(lambda: self.toolRequested.emit("txd_editor", {}))
         
@@ -73,7 +73,7 @@ class ToolsPanel(QWidget):
         dff_btn.clicked.connect(lambda: self.toolRequested.emit("dff_viewer", {}))
         
         # COL Editor
-        col_btn = QPushButton("� COL Editor")
+        col_btn = QPushButton("📐 COL Editor")
         col_btn.setToolTip("Edit collision data files")
         col_btn.clicked.connect(lambda: self.toolRequested.emit("col_editor", {}))
         
@@ -93,16 +93,16 @@ class ToolsPanel(QWidget):
     
     def create_map_world_tools(self, layout):
         """Create map and world editing tools"""
-        map_group = QGroupBox("�️ Map & World Tools")
+        map_group = QGroupBox("Map & World Tools")
         map_layout = QVBoxLayout()
         
         # IDE Editor
-        ide_btn = QPushButton("� IDE Editor")
+        ide_btn = QPushButton("📋 IDE Editor")
         ide_btn.setToolTip("Edit item definition files")
         ide_btn.clicked.connect(lambda: self.toolRequested.emit("ide_editor", {}))
         
         # IPL Editor
-        ipl_btn = QPushButton("� IPL Editor")
+        ipl_btn = QPushButton("📋 IPL Editor")
         ipl_btn.setToolTip("Edit item placement files")
         ipl_btn.clicked.connect(lambda: self.toolRequested.emit("ipl_editor", {}))
         
@@ -138,7 +138,7 @@ class ToolsPanel(QWidget):
     
     def create_data_editors(self, layout):
         """Create data and statistics editors"""
-        data_group = QGroupBox("📊 Data Editors")
+        data_group = QGroupBox("Data Editors")
         data_layout = QVBoxLayout()
         
         # Weapons Editor
@@ -177,7 +177,7 @@ class ToolsPanel(QWidget):
     
     def create_utilities(self, layout):
         """Create utility tools"""
-        util_group = QGroupBox("� Utilities")
+        util_group = QGroupBox("Utilities")
         util_layout = QVBoxLayout()
         
         # RW Analyze
@@ -185,25 +185,14 @@ class ToolsPanel(QWidget):
         analyze_btn.setToolTip("Analyze and debug Renderware files")
         analyze_btn.clicked.connect(lambda: self.toolRequested.emit("rw_analyze", {}))
         
-        # Batch Converter
-        batch_btn = QPushButton("� Batch Converter")
-        batch_btn.setToolTip("Convert multiple files at once")
-        batch_btn.clicked.connect(lambda: self.toolRequested.emit("batch_converter", {}))
-        
         # File Validator
         validate_btn = QPushButton("✅ File Validator")
         validate_btn.setToolTip("Validate file integrity and format")
         validate_btn.clicked.connect(lambda: self.toolRequested.emit("file_validator", {}))
         
-        # Backup Manager
-        backup_btn = QPushButton("� Backup Manager")
-        backup_btn.setToolTip("Manage file backups and restore points")
-        backup_btn.clicked.connect(lambda: self.toolRequested.emit("backup_manager", {}))
         
         util_layout.addWidget(analyze_btn)
-        util_layout.addWidget(batch_btn)
         util_layout.addWidget(validate_btn)
-        util_layout.addWidget(backup_btn)
         
         util_group.setLayout(util_layout)
         layout.addWidget(util_group)
