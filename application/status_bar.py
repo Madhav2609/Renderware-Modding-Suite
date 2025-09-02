@@ -28,25 +28,38 @@ class StatusBarWidget(QWidget):
         fonts = rm.get_font_config()
         spacing = rm.get_spacing_config()
         
+        # Set fixed height using responsive manager's constraints
+        status_height = rm.get_status_bar_height()
+        self.setFixedHeight(status_height)
+        self.setMaximumHeight(status_height)
+        self.setMinimumHeight(status_height)
+        
         layout = QHBoxLayout()
-        layout.setContentsMargins(spacing['small'], spacing['small']//2, spacing['small'], spacing['small']//2)
+        layout.setContentsMargins(spacing['small'], 2, spacing['small'], 2)  # Reduced vertical margins
         
         # Status message label with responsive font
         self.status_label = QLabel("Ready")
         self.status_label.setStyleSheet(f"color: {ModernDarkTheme.TEXT_ACCENT}; font-weight: bold; font-size: {fonts['status']['size']}px;")
+        self.status_label.setMaximumHeight(status_height - 4)  # Prevent label from being too tall
         
         # File info label with responsive font
         self.file_label = QLabel("No file loaded")
         self.file_label.setStyleSheet(f"color: {ModernDarkTheme.TEXT_SECONDARY}; font-size: {fonts['status']['size']}px;")
+        self.file_label.setMaximumHeight(status_height - 4)
         
-        # Progress bar (hidden by default) with responsive width
+        # Progress bar (hidden by default) with responsive width and height
         self.progress_bar = QProgressBar()
         self.progress_bar.setMaximumWidth(rm.get_scaled_size(200))
+        progress_height = min(14, status_height - 8)  # Even smaller progress bar
+        self.progress_bar.setMaximumHeight(progress_height)
+        self.progress_bar.setMinimumHeight(progress_height)
         self.progress_bar.setVisible(False)
         
         # Memory usage with responsive font
         self.memory_label = QLabel("Memory: 0 MB")
         self.memory_label.setStyleSheet(f"color: {ModernDarkTheme.TEXT_SECONDARY}; font-size: {fonts['small']['size']}px;")
+        self.memory_label.setMaximumHeight(status_height - 4)
+        self.memory_label.setMinimumWidth(rm.get_scaled_size(100))  # Ensure consistent width
         
         # Add widgets to layout
         layout.addWidget(self.status_label)

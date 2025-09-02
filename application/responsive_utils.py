@@ -24,35 +24,61 @@ class ResponsiveManager:
     def _get_screen_info(self) -> Dict:
         """Get current screen information"""
         if not self.app:
-            return {"width": 1920, "height": 1080, "dpi": 96, "physical_dpi": 96}
+            return {"width": 1920, "height": 1080, "dpi": 96, "physical_dpi": 96, "device_pixel_ratio": 1.0}
         
-        primary_screen = self.app.primaryScreen()
-        if primary_screen:
-            geometry = primary_screen.geometry()
-            dpi = primary_screen.logicalDotsPerInch()
-            physical_dpi = primary_screen.physicalDotsPerInch()
+        try:
+            # Get primary screen - safer approach for PyQt6
+            primary_screen = None
+            if hasattr(self.app, 'primaryScreen'):
+                primary_screen = self.app.primaryScreen()
+            elif hasattr(self.app, 'desktop'):
+                # Fallback for older versions
+                desktop = self.app.desktop()
+                if hasattr(desktop, 'screenGeometry'):
+                    geometry = desktop.screenGeometry()
+                    return {
+                        "width": geometry.width(),
+                        "height": geometry.height(), 
+                        "dpi": 96,
+                        "physical_dpi": 96,
+                        "device_pixel_ratio": 1.0
+                    }
             
-            return {
-                "width": geometry.width(),
-                "height": geometry.height(),
-                "dpi": dpi,
-                "physical_dpi": physical_dpi,
-                "device_pixel_ratio": primary_screen.devicePixelRatio()
-            }
+            if primary_screen:
+                geometry = primary_screen.geometry()
+                dpi = getattr(primary_screen, 'logicalDotsPerInch', lambda: 96)()
+                physical_dpi = getattr(primary_screen, 'physicalDotsPerInch', lambda: 96)()
+                device_pixel_ratio = getattr(primary_screen, 'devicePixelRatio', lambda: 1.0)()
+                
+                return {
+                    "width": geometry.width(),
+                    "height": geometry.height(),
+                    "dpi": dpi,
+                    "physical_dpi": physical_dpi,
+                    "device_pixel_ratio": device_pixel_ratio
+                }
+        except Exception as e:
+            # Log the error if debug logger is available
+            if hasattr(self, 'debug_logger') and self.debug_logger:
+                self.debug_logger.warning(LogCategory.UI, f"Could not get screen info: {e}")
         
+        # Return defaults if everything fails
         return {"width": 1920, "height": 1080, "dpi": 96, "physical_dpi": 96, "device_pixel_ratio": 1.0}
     
     def _calculate_scale_factor(self) -> float:
-        """Calculate scale factor based on screen DPI and size"""
+        """Calculate scale factor based on screen DPI, size, and aspect ratio"""
         base_dpi = 96  # Standard Windows DPI
         current_dpi = self.screen_info["dpi"]
         
         # Base scale from DPI
         dpi_scale = current_dpi / base_dpi
         
-        # Additional scale based on screen resolution
+        # Additional scale based on screen resolution and aspect ratio
         width = self.screen_info["width"]
+        height = self.screen_info["height"]
+        aspect_ratio = width / height if height > 0 else 1.0
         
+        # Resolution-based scale
         if width <= 1366:  # Small laptops (14-15 inch)
             resolution_scale = 0.85
         elif width <= 1600:  # Medium screens (15-17 inch)
@@ -64,8 +90,17 @@ class ResponsiveManager:
         else:  # 4K and larger
             resolution_scale = 1.2
         
-        # Combine both scales
-        final_scale = dpi_scale * resolution_scale
+        # Aspect ratio adjustments (16:9 is baseline)
+        baseline_aspect = 16/9
+        aspect_scale = 1.0
+        
+        if aspect_ratio > baseline_aspect * 1.3:  # Ultra-wide displays
+            aspect_scale = 1.15
+        elif aspect_ratio < baseline_aspect * 0.8:  # Square-ish displays
+            aspect_scale = 0.95
+        
+        # Combine all scales
+        final_scale = dpi_scale * resolution_scale * aspect_scale
         
         # Clamp to reasonable bounds
         return max(0.8, min(2.0, final_scale))
@@ -133,11 +168,20 @@ class ResponsiveManager:
         return (margin, margin, margin, margin)
     
     def get_window_size(self) -> Tuple[int, int]:
-        screen = self.app.primaryScreen() if self.app else None
-        if screen:
-            avail = screen.availableGeometry()
-            width, height = avail.width(), avail.height()
-        else:
+        """Get recommended window size based on screen and breakpoint"""
+        try:
+            # Try to get available geometry from screen
+            if self.app and hasattr(self.app, 'primaryScreen'):
+                screen = self.app.primaryScreen()
+                if screen and hasattr(screen, 'availableGeometry'):
+                    avail = screen.availableGeometry()
+                    width, height = avail.width(), avail.height()
+                else:
+                    width, height = self.screen_info["width"], self.screen_info["height"]
+            else:
+                width, height = self.screen_info["width"], self.screen_info["height"]
+        except:
+            # Fallback to screen info
             width, height = self.screen_info["width"], self.screen_info["height"]
 
         if self.breakpoint == "small":
@@ -190,7 +234,35 @@ class ResponsiveManager:
             "xlarge": self.get_scaled_size(14)
         }
     
-    def print_debug_info(self):
+    def get_status_bar_height(self) -> int:
+        """Get appropriate status bar height to prevent oversizing"""
+        base_height = 24
+        scaled_height = self.get_scaled_size(base_height)
+        
+        # Clamp to reasonable bounds - status bars shouldn't be too tall
+        return max(20, min(32, scaled_height))
+    
+    def get_menu_height(self) -> int:
+        """Get appropriate menu bar height"""
+        base_height = 22
+        return self.get_scaled_size(base_height)
+    
+    def get_toolbar_height(self) -> int:
+        """Get appropriate toolbar height"""
+        base_height = 32
+        return self.get_scaled_size(base_height)
+    
+    def get_widget_size_constraints(self, widget_type: str) -> tuple:
+        """Get size constraints for different widget types"""
+        constraints = {
+            "status_bar": (None, self.get_status_bar_height()),  # (min_height, max_height)
+            "menu_bar": (None, self.get_menu_height()),
+            "toolbar": (None, self.get_toolbar_height()),
+            "button": (self.get_scaled_size(24), self.get_scaled_size(32)),
+            "tab_bar": (None, self.get_scaled_size(28)),
+        }
+        
+        return constraints.get(widget_type, (None, None))
         """Print debug information about current scaling"""
         # Summary info
         self.debug_logger.info(LogCategory.UI, "Responsive manager debug info", {

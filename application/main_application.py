@@ -9,7 +9,7 @@ from pathlib import Path
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                             QHBoxLayout, QSplitter, QMenuBar, QMenu, QMessageBox)
 from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QAction, QIcon, QFont, QPalette, QColor
+from PyQt6.QtGui import QAction, QIcon, QFont, QPalette, QColor, QScreen
 
 # Import modular components
 from application.styles import ModernDarkTheme
@@ -45,6 +45,24 @@ class RenderwareModdingSuite(QMainWindow):
         self.memory_timer.timeout.connect(self.update_memory_usage)
         self.memory_timer.start(5000)  # Update every 5 seconds
         
+        # Monitor screen changes for multi-monitor setups
+        if QApplication.instance():
+            try:
+                app = QApplication.instance()
+                if hasattr(app, 'screenAdded'):
+                    app.screenAdded.connect(self.handle_screen_change)
+                if hasattr(app, 'screenRemoved'):
+                    app.screenRemoved.connect(self.handle_screen_change)
+                if hasattr(app, 'primaryScreenChanged'):
+                    app.primaryScreenChanged.connect(self.handle_screen_change)
+                
+                # Monitor primary screen geometry changes
+                primary_screen = app.primaryScreen()
+                if primary_screen and hasattr(primary_screen, 'geometryChanged'):
+                    primary_screen.geometryChanged.connect(self.handle_screen_change)
+            except Exception as e:
+                self.debug_logger.warning(LogCategory.UI, f"Could not set up screen monitoring: {e}")
+        
         self.debug_logger.info(LogCategory.SYSTEM, "Application initialization completed")
     
     
@@ -65,8 +83,8 @@ class RenderwareModdingSuite(QMainWindow):
         })
         
         # Print debug info for development
-        rm.print_debug_info()
-        
+    
+
         # Set application icon
         self.set_window_icon()
         
@@ -360,6 +378,23 @@ class RenderwareModdingSuite(QMainWindow):
             pass
         except Exception as e:
             self.debug_logger.error(LogCategory.MEMORY, f"Error updating memory usage: {e}")
+    
+    def handle_screen_change(self, screen=None):
+        """Handle screen changes (resolution, DPI, etc.)"""
+        self.debug_logger.info(LogCategory.UI, "Screen configuration changed, refreshing UI scaling")
+        
+        try:
+            # Refresh responsive manager with new screen info
+            from application.responsive_utils import refresh_responsive_manager
+            refresh_responsive_manager()
+            
+            # Update UI scaling
+            self.refresh_ui_scaling()
+            
+            self.status_bar.set_status("Screen configuration updated", temporary=True)
+        except Exception as e:
+            self.debug_logger.error(LogCategory.UI, f"Error handling screen change: {e}")
+            
     def closeEvent(self, event):
         """Handle application close event to ensure proper cleanup"""
         try:
@@ -476,6 +511,10 @@ def main():
     os.environ.pop('QT_QPA_PLATFORMTHEME', None)  # Remove any existing platform theme
     os.environ.pop('QT_QUICK_CONTROLS_STYLE', None)  # Remove quick controls style
     os.environ.pop('QT_QUICK_CONTROLS_MATERIAL_THEME', None)  # Remove material theme
+    
+    # CRITICAL: Enable high DPI support BEFORE creating QApplication
+    QApplication.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
+    # Note: In PyQt6, high DPI scaling is enabled by default
     
     app = QApplication(sys.argv)
     debug_logger.debug(LogCategory.SYSTEM, "QApplication created")
