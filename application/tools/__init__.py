@@ -6,6 +6,7 @@ from application.tools.IMG_Editor import ImgEditorTool
 from application.tools.DFF_Viewer.DFF_Viewer import DFFViewerTool
 from application.tools.RW_Analyze.RW_Analyze import RWAnalyzeTool
 from application.tools.IDE_Editor.IDE_Editor import IDEEditor
+from application.tools.TXD_Editor import TXDEditorTool
 
 __all__ = [
     'ToolRegistry', 
@@ -13,4 +14,5 @@ __all__ = [
     'DFFViewerTool',
     'RWAnalyzeTool',
     'IDEEditor',
+    'TXDEditorTool',
 ]

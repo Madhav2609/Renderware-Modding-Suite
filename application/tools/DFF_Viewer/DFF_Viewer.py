@@ -14,6 +14,12 @@ import traceback
 import struct
 import sys
 
+# Import the debug system
+from application.debug_system import get_debug_logger, LogCategory, LogLevel, debug_function
+
+# Module-level debug logger
+debug_logger = get_debug_logger()
+
 # Correctly import QBuffer and QByteArray from QtCore
 from PyQt6 import QtCore, QtGui, QtWidgets
 from PyQt6.QtCore import Qt, pyqtSignal, QUrl, QBuffer, QByteArray 
@@ -71,21 +77,23 @@ from PyQt6.Qt3DRender import (
     QAlphaTest,
 )
 
+
+
 # Import the DFF parser and the Vector class
 # Prefer in-suite path; fall back to local if directly running outside package
 try:
     from application.common.DFF import dff, Vector, SkinPLG, HAnimPLG, UserData
     from application.common.txd import txd, TextureNative
-    print("[DFF Viewer] Using suite imports - TXD support enabled")
+    debug_logger.info(LogCategory.TOOL, "[DFF Viewer] Using suite imports - TXD support enabled")
 except ImportError as e:
-    print(f"[DFF Viewer] Suite import failed: {e}")
+    debug_logger.warning(LogCategory.TOOL, f"[DFF Viewer] Suite import failed", {"error": str(e)})
     try:
         # This would be for standalone execution outside the suite
         from common.DFF import dff, Vector, SkinPLG, HAnimPLG, UserData
         from common.txd import txd, TextureNative
-        print("[DFF Viewer] Using local common imports - TXD support enabled")
+        debug_logger.info(LogCategory.TOOL, "[DFF Viewer] Using local common imports - TXD support enabled")
     except ImportError as e2:
-        print(f"[DFF Viewer] Local import also failed: {e2}")
+        debug_logger.warning(LogCategory.TOOL, f"[DFF Viewer] Local import also failed", {"error": str(e2)})
         # Try DFF-only mode
         try:
             from application.common.DFF import dff, Vector, SkinPLG, HAnimPLG, UserData
@@ -103,9 +111,9 @@ except ImportError as e:
                 def to_rgba(self, level=0): return None
                 def get_width(self, level=0): return 0
                 def get_height(self, level=0): return 0
-            print("[DFF Viewer] TXD support disabled - only DFF parsing available")
+            debug_logger.info(LogCategory.TOOL, "[DFF Viewer] TXD support disabled - only DFF parsing available")
         except ImportError as e3:
-            print(f"Import Error: Could not import DFF parser: {e3}")
+            debug_logger.error(LogCategory.TOOL, "Import Error: Could not import DFF parser", {"error": str(e3)})
             sys.exit(1)
 
 # Suite integrations (safe to import when running inside the app)
@@ -235,7 +243,7 @@ class BlenderStyleCameraController:
             
         self.mouse_button = event.button() if hasattr(event, 'button') else None
         self.is_navigating = True
-        print(f"Mouse pressed: {self.mouse_button}, pos: {self.last_mouse_pos}")
+        # debug_logger.debug(LogCategory.TOOL, f"Mouse pressed: {self.mouse_button}, pos: {self.last_mouse_pos}")
     
     def handle_mouse_release(self, event):
         """Handle mouse release events."""
@@ -260,7 +268,7 @@ class BlenderStyleCameraController:
         delta_x = current_pos.x() - self.last_mouse_pos.x()
         delta_y = current_pos.y() - self.last_mouse_pos.y()
         
-        print(f"Mouse move: delta({delta_x}, {delta_y}), button: {self.mouse_button}")
+        # debug_logger.debug(LogCategory.TOOL, f"Mouse move: delta({delta_x}, {delta_y}), button: {self.mouse_button}")
         
         modifiers = event.modifiers() if hasattr(event, 'modifiers') else QtCore.Qt.KeyboardModifier.NoModifier
         
@@ -268,7 +276,7 @@ class BlenderStyleCameraController:
         if (self.mouse_button == Qt.MouseButton.MiddleButton or 
             (self.mouse_button == Qt.MouseButton.LeftButton and 
              modifiers & Qt.KeyboardModifier.ShiftModifier)):
-            print(f"Orbiting: {delta_x}, {delta_y}")
+            # debug_logger.debug(LogCategory.TOOL, f"Orbiting: {delta_x}, {delta_y}")
             self._orbit(delta_x, delta_y)
         
         # Shift+Middle mouse or Ctrl+Left mouse: Pan
@@ -276,12 +284,12 @@ class BlenderStyleCameraController:
                modifiers & Qt.KeyboardModifier.ShiftModifier) or
               (self.mouse_button == Qt.MouseButton.LeftButton and 
                modifiers & Qt.KeyboardModifier.ControlModifier)):
-            print(f"Panning: {delta_x}, {delta_y}")
+            # debug_logger.debug(LogCategory.TOOL, f"Panning: {delta_x}, {delta_y}")
             self._pan(delta_x, delta_y)
         
         # Right mouse button: Zoom
         elif self.mouse_button == Qt.MouseButton.RightButton:
-            print(f"Zooming: {delta_y}")
+            # debug_logger.debug(LogCategory.TOOL, f"Zooming: {delta_y}")
             self._zoom(delta_y)
         
         self.last_mouse_pos = current_pos
@@ -293,7 +301,7 @@ class BlenderStyleCameraController:
         else:
             delta = event.delta() / 120.0 if hasattr(event, 'delta') else 0
         
-        print(f"Wheel zoom: {delta}")
+        # debug_logger.debug(LogCategory.TOOL, f"Wheel zoom: {delta}")
         self._zoom(-delta * 0.5)  # Negative for natural scrolling
     
     def _orbit(self, delta_x, delta_y):
@@ -431,7 +439,7 @@ class Viewer3D(QWidget):
 
     def mousePressEvent(self, event):
         """Handle mouse press events directly."""
-        print(f"Direct mouse press: {event.button()}")
+        # debug_logger.debug(LogCategory.TOOL, f"Direct mouse press: {event.button()}")
         self.camera_controller.handle_mouse_press(event)
         # Change cursor during navigation
         if event.button() == Qt.MouseButton.MiddleButton:
@@ -445,7 +453,7 @@ class Viewer3D(QWidget):
     
     def mouseReleaseEvent(self, event):
         """Handle mouse release events directly."""
-        print(f"Direct mouse release: {event.button()}")
+        # debug_logger.debug(LogCategory.TOOL, f"Direct mouse release: {event.button()}")
         self.camera_controller.handle_mouse_release(event)
         self.setCursor(Qt.CursorShape.ArrowCursor)
         super().mouseReleaseEvent(event)
@@ -457,7 +465,7 @@ class Viewer3D(QWidget):
     
     def wheelEvent(self, event):
         """Handle wheel events directly."""
-        print(f"Direct wheel event: {event.angleDelta()}")
+        # debug_logger.debug(LogCategory.TOOL, f"Direct wheel event: {event.angleDelta()}")
         self.camera_controller.handle_wheel(event)
         super().wheelEvent(event)
     
@@ -468,12 +476,12 @@ class Viewer3D(QWidget):
             event_type = event.type()
             
             # Debug: Print event types to see what we're getting
-            if event_type in [QtCore.QEvent.Type.MouseButtonPress, QtCore.QEvent.Type.MouseButtonRelease, 
-                             QtCore.QEvent.Type.MouseMove, QtCore.QEvent.Type.Wheel]:
-                print(f"Event Filter - Obj: {obj.__class__.__name__}, Event: {event_type}, Button: {getattr(event, 'button', lambda: 'N/A')() if hasattr(event, 'button') else 'N/A'}")
+            # if event_type in [QtCore.QEvent.Type.MouseButtonPress, QtCore.QEvent.Type.MouseButtonRelease, 
+            #                  QtCore.QEvent.Type.MouseMove, QtCore.QEvent.Type.Wheel]:
+            #     debug_logger.debug(LogCategory.TOOL, f"Event Filter - Obj: {obj.__class__.__name__}, Event: {event_type}, Button: {getattr(event, 'button', lambda: 'N/A')() if hasattr(event, 'button') else 'N/A'}")
             
             if event_type == QtCore.QEvent.Type.MouseButtonPress:
-                print(f"Event filter mouse press: {event.button()}")
+                # debug_logger.debug(LogCategory.TOOL, f"Event filter mouse press: {event.button()}")
                 self.camera_controller.handle_mouse_press(event)
                 # Change cursor during navigation
                 if hasattr(event, 'button'):
@@ -487,7 +495,7 @@ class Viewer3D(QWidget):
                 return True
                 
             elif event_type == QtCore.QEvent.Type.MouseButtonRelease:
-                print(f"Event filter mouse release: {event.button()}")
+                # debug_logger.debug(LogCategory.TOOL, f"Event filter mouse release: {event.button()}")
                 self.camera_controller.handle_mouse_release(event)
                 # Reset cursor
                 self.container.setCursor(Qt.CursorShape.ArrowCursor)
@@ -498,7 +506,7 @@ class Viewer3D(QWidget):
                 return True
                 
             elif event_type == QtCore.QEvent.Type.Wheel:
-                print(f"Event filter wheel: {event.angleDelta()}")
+                # debug_logger.debug(LogCategory.TOOL, f"Event filter wheel: {event.angleDelta()}")
                 self.camera_controller.handle_wheel(event)
                 return True
                 
@@ -693,10 +701,10 @@ class Viewer3D(QWidget):
 
             # Minimal debug: print which convention chosen and a few sample positions
             try:
-                print(f"[DFF Viewer] Transform order chosen: {'parent*local' if var_a >= var_b else 'local*parent'} (var_a={var_a:.3f}, var_b={var_b:.3f})")
+                debug_logger.debug(LogCategory.TOOL, f"Transform order chosen: {'parent*local' if var_a >= var_b else 'local*parent'} (var_a={var_a:.3f}, var_b={var_b:.3f})")
                 for i in range(min(5, len(chosen_pos))):
                     px,py,pz = chosen_pos[i]
-                    print(f"  Frame {i}: parent={parents[i]} world_pos=({px:.3f},{py:.3f},{pz:.3f})")
+                    debug_logger.debug(LogCategory.TOOL, f"Frame {i}: parent={parents[i]} world_pos=({px:.3f},{py:.3f},{pz:.3f})")
             except Exception:
                 pass
 
@@ -719,8 +727,12 @@ class Viewer3D(QWidget):
 
             for i, v in enumerate(geo.vertices):
                 vertex_byte_array.append(struct.pack('<3f', v.x, v.y, v.z))
-                min_vec.setX(min(min_vec.x(), v.x)); min_vec.setY(min(min_vec.y(), v.y)); min_vec.setZ(min(min_vec.z(), v.z))
-                max_vec.setX(max(max_vec.x(), v.x)); max_vec.setY(max(max_vec.y(), v.y)); max_vec.setZ(max(max_vec.z(), v.z))
+                min_vec.setX(min(min_vec.x(), v.x))
+                min_vec.setY(min(min_vec.y(), v.y))
+                min_vec.setZ(min(min_vec.z(), v.z))
+                max_vec.setX(max(max_vec.x(), v.x))
+                max_vec.setY(max(max_vec.y(), v.y))
+                max_vec.setZ(max(max_vec.z(), v.z))
                 
                 n = geo.normals[i] if has_normals else Vector(0.0, 1.0, 0.0)
                 vertex_byte_array.append(struct.pack('<3f', n.x, n.y, n.z))
@@ -840,12 +852,12 @@ class Viewer3D(QWidget):
             # Apply textures to current model if available
             self._apply_textures_to_model()
             
-            print(f"[DFF Viewer] Loaded TXD: {path}")
-            print(f"  Native Textures: {len(txd_file.native_textures)}")
+            debug_logger.info(LogCategory.TOOL, f"Loaded TXD: {path}")
+            debug_logger.info(LogCategory.TOOL, f"Native Textures: {len(txd_file.native_textures)}")
             
         except Exception as e:
             QMessageBox.critical(self, "TXD Load Error", f"Could not load TXD file: {e}")
-            print(f"[DFF Viewer] TXD load error: {e}")
+            debug_logger.error(LogCategory.TOOL, f"TXD load error", {"error": str(e)})
 
     def _create_qt3d_texture_from_native(self, native_texture: TextureNative) -> QTexture2D | None:
         """Convert a TXD native texture to Qt3D texture."""
@@ -858,7 +870,7 @@ class Viewer3D(QWidget):
             width = native_texture.get_width(0)
             height = native_texture.get_height(0)
             
-            print(f"[DFF Viewer] Creating Qt3D texture: {native_texture.name} ({width}x{height})")
+            debug_logger.debug(LogCategory.TOOL, f"Creating Qt3D texture: {native_texture.name} ({width}x{height})")
             
             # Create Qt3D texture with proper initialization for RGBA format
             texture = QTexture2D()
@@ -886,13 +898,12 @@ class Viewer3D(QWidget):
             texture_image.setSource(QUrl.fromLocalFile(temp_path))
             texture.addTextureImage(texture_image)
             
-            print(f"[DFF Viewer] Successfully created Qt3D texture for {native_texture.name}")
+            debug_logger.debug(LogCategory.TOOL, f"Successfully created Qt3D texture for {native_texture.name}")
             return texture
             
         except Exception as e:
-            print(f"[DFF Viewer] Error creating Qt3D texture: {e}")
-            import traceback
-            traceback.print_exc()
+            debug_logger.error(LogCategory.TOOL, f"Error creating Qt3D texture", {"error": str(e)})
+            debug_logger.log_exception(LogCategory.TOOL, "Error creating Qt3D texture", e)
             return None
 
     def _get_required_texture_names(self):
@@ -900,7 +911,7 @@ class Viewer3D(QWidget):
         required_textures = []
         
         if not hasattr(self, 'current_dff') or not self.current_dff:
-            print("[DFF Viewer] No DFF file loaded to extract texture names")
+            debug_logger.warning(LogCategory.TOOL, "No DFF file loaded to extract texture names")
             return required_textures
         
         try:
@@ -914,7 +925,7 @@ class Viewer3D(QWidget):
                                 texture_name = material.texture
                                 if texture_name and texture_name not in required_textures:
                                     required_textures.append(texture_name)
-                                    print(f"[DFF Viewer] Found required texture: {texture_name}")
+                                    debug_logger.debug(LogCategory.TOOL, f"Found required texture: {texture_name}")
                             
                             # Also check textures array if it exists
                             if hasattr(material, 'textures') and material.textures:
@@ -923,14 +934,13 @@ class Viewer3D(QWidget):
                                         texture_name = tex.name
                                         if texture_name and texture_name not in required_textures:
                                             required_textures.append(texture_name)
-                                            print(f"[DFF Viewer] Found required texture: {texture_name}")
+                                            debug_logger.debug(LogCategory.TOOL, f"Found required texture: {texture_name}")
             
-            print(f"[DFF Viewer] Total required textures found: {len(required_textures)}")
+            debug_logger.info(LogCategory.TOOL, f"Total required textures found: {len(required_textures)}")
             
         except Exception as e:
-            print(f"[DFF Viewer] Error extracting texture names: {e}")
-            import traceback
-            traceback.print_exc()
+            debug_logger.error(LogCategory.TOOL, f"Error extracting texture names", {"error": str(e)})
+            debug_logger.log_exception(LogCategory.TOOL, "Error extracting texture names", e)
         
         return required_textures
 
@@ -943,19 +953,19 @@ class Viewer3D(QWidget):
             # Find all geometry renderer entities in the current model
             renderers = self.model_entity.findChildren(QGeometryRenderer)
             
-            print(f"[DFF Viewer] Applying textures - found {len(renderers)} geometry renderers, {len(self.current_txd.native_textures)} textures")
+            debug_logger.info(LogCategory.TOOL, f"Applying textures - found {len(renderers)} geometry renderers, {len(self.current_txd.native_textures)} textures")
             
             if not self.current_txd.native_textures:
-                print("[DFF Viewer] No textures in TXD to apply")
+                debug_logger.warning(LogCategory.TOOL, "No textures in TXD to apply")
                 return
             
             # Get required texture names from the DFF materials
             required_textures = self._get_required_texture_names()
-            print(f"[DFF Viewer] Required textures from DFF: {required_textures}")
+            debug_logger.debug(LogCategory.TOOL, f"Required textures from DFF", {"textures": required_textures})
             
             # Create a mapping of available textures by name
             available_textures = {tex.name.lower(): tex for tex in self.current_txd.native_textures}
-            print(f"[DFF Viewer] Available textures in TXD: {list(available_textures.keys())}")
+            debug_logger.debug(LogCategory.TOOL, f"Available textures in TXD", {"textures": list(available_textures.keys())})
             
             # Apply textures to geometry renderers by matching required textures
             applied_count = 0
@@ -976,7 +986,7 @@ class Viewer3D(QWidget):
                     required_texture_name = required_textures[0]
                 
                 if not required_texture_name:
-                    print(f"[DFF Viewer] No required texture found for geometry {i}")
+                    debug_logger.warning(LogCategory.TOOL, f"No required texture found for geometry {i}")
                     continue
                 
                 # Look for the texture in TXD (case-insensitive)
@@ -987,10 +997,10 @@ class Viewer3D(QWidget):
                     missing_texture = required_texture_name
                     if missing_texture not in missing_textures:
                         missing_textures.append(missing_texture)
-                        print(f"[DFF Viewer] Missing texture: {missing_texture}")
+                        debug_logger.warning(LogCategory.TOOL, f"Missing texture: {missing_texture}")
                     continue
                 
-                print(f"[DFF Viewer] Applying texture '{native_texture.name}' to geometry {i}")
+                debug_logger.debug(LogCategory.TOOL, f"Applying texture '{native_texture.name}' to geometry {i}")
                 
                 # Create Qt3D texture if not cached
                 if native_texture.name not in self.texture_cache:
@@ -1017,23 +1027,22 @@ class Viewer3D(QWidget):
                     parent_entity.addComponent(textured_material)
                     applied_count += 1
                     
-                    print(f"[DFF Viewer] Applied Qt3D texture {native_texture.name} to geometry {i}")
+                    debug_logger.debug(LogCategory.TOOL, f"Applied Qt3D texture {native_texture.name} to geometry {i}")
                 else:
-                    print(f"[DFF Viewer] Failed to create/apply texture for {native_texture.name}")
+                    debug_logger.warning(LogCategory.TOOL, f"Failed to create/apply texture for {native_texture.name}")
             
             # Show messages for missing textures
             if missing_textures:
                 missing_list = ', '.join(missing_textures)
                 message = f"Missing textures from TXD: {missing_list}. These textures will not be shown."
                 QMessageBox.warning(None, "Missing Textures", message)
-                print(f"[DFF Viewer] Warning: {message}")
+                debug_logger.warning(LogCategory.TOOL, f"Warning: {message}")
                         
-            print(f"[DFF Viewer] Successfully applied {applied_count} textures to {len(renderers)} geometries")
+            debug_logger.info(LogCategory.TOOL, f"Successfully applied {applied_count} textures to {len(renderers)} geometries")
                             
         except Exception as e:
-            print(f"[DFF Viewer] Error applying textures: {e}")
-            import traceback
-            traceback.print_exc()
+            debug_logger.error(LogCategory.TOOL, f"Error applying textures", {"error": str(e)})
+            debug_logger.log_exception(LogCategory.TOOL, "Error applying textures", e)
 
     def clear_txd(self):
         """Clear loaded TXD and revert materials to original colors."""
@@ -1043,7 +1052,7 @@ class Viewer3D(QWidget):
         
         # Revert materials to original colors by reloading the DFF
         if self.current_dff_path:
-            print("[DFF Viewer] Reloading DFF to restore original materials")
+            debug_logger.info(LogCategory.TOOL, "Reloading DFF to restore original materials")
             self.load_dff(self.current_dff_path)
         else:
             # If no DFF path, just recreate basic materials
@@ -1088,14 +1097,22 @@ class CameraDock(QWidget):
 
         def labelled_slider(label: str, minimum: int, maximum: int, value: int, step: int = 1):
             box = QWidget()
-            v = QVBoxLayout(box); v.setContentsMargins(0, 0, 0, 0)
+            v = QVBoxLayout(box)
+            v.setContentsMargins(0, 0, 0, 0)
             v.addWidget(QLabel(label))
             h = QHBoxLayout()
-            s = QSlider(Qt.Orientation.Horizontal); s.setRange(minimum, maximum); s.setSingleStep(step); s.setValue(value)
-            spin = QSpinBox(); spin.setRange(minimum, maximum); spin.setSingleStep(step); spin.setValue(value)
+            s = QSlider(Qt.Orientation.Horizontal)
+            s.setRange(minimum, maximum)
+            s.setSingleStep(step)
+            s.setValue(value)
+            spin = QSpinBox()
+            spin.setRange(minimum, maximum)
+            spin.setSingleStep(step)
+            spin.setValue(value)
             s.valueChanged.connect(spin.setValue)
             spin.valueChanged.connect(s.setValue)
-            h.addWidget(s); h.addWidget(spin)
+            h.addWidget(s)
+            h.addWidget(spin)
             v.addLayout(h)
             return box, s
 
