@@ -16,7 +16,7 @@
 
 from struct import unpack_from
 
-from .dff import SkinPLG, RGBA, TexCoords, Vector, ExtraVertColorExtension
+from .DFF import SkinPLG, RGBA, TexCoords, Vector, ExtraVertColorExtension
 
 ATTRIB_ID_COORD       = 0
 ATTRIB_ID_TEX_COORD   = 1

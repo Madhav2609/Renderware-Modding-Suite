@@ -16,7 +16,7 @@
 
 from struct import unpack_from, calcsize
 
-from .dff import RGBA, Sections, TexCoords, Triangle, Vector
+from .DFF import RGBA, Sections, TexCoords, Triangle, Vector
 from .txd import ImageDecoder, TextureNative, PaletteType
 
 # geometry flags

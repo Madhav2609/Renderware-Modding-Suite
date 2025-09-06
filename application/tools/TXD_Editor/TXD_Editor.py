@@ -29,6 +29,8 @@ from PyQt6.QtWidgets import (
     QFileDialog,
     QDialog,
     QTextEdit,
+    QListWidget,
+    QListWidgetItem,
 )
 
 from application.common.message_box import message_box
@@ -406,7 +408,8 @@ class TXDArchiveTab(QWidget):
 
         # Left side - Texture list with filter
         left_panel = QWidget()
-        left_panel.setMinimumWidth(350)  # Ensure adequate width for texture list
+        left_panel.setMinimumWidth(200)  # Reduced width for texture list
+        left_panel.setMaximumWidth(250)  # Cap maximum width
         left_layout = QVBoxLayout(left_panel)
         left_layout.setContentsMargins(0, 0, 0, 0)
 
@@ -415,21 +418,21 @@ class TXDArchiveTab(QWidget):
         self.filter_panel.filter_changed.connect(self._on_filter_changed)
         left_layout.addWidget(self.filter_panel)
 
-        # Texture list
-        self.texture_table = TXDTextureTable()
-        self.texture_table.texture_selected.connect(self._on_texture_selected)
-        left_layout.addWidget(self.texture_table)
+        # Texture list (simple list instead of table)
+        self.texture_list = TXDTextureList()
+        self.texture_list.texture_selected.connect(self._on_texture_selected)
+        left_layout.addWidget(self.texture_list)
 
         layout.addWidget(left_panel)
 
         # Right side - Texture preview
         self.preview_panel = TXDTexturePreview()
-        self.preview_panel.setMinimumWidth(400)  # Ensure adequate width for preview
+        self.preview_panel.setMinimumWidth(500)  # Increased minimum width for preview
         layout.addWidget(self.preview_panel)
 
-        # Set proportions - more space for both panels now
-        layout.setStretch(0, 40)  # Texture list gets 40% 
-        layout.setStretch(1, 60)  # Preview panel gets 60%
+        # Set proportions - give much more space to preview
+        layout.setStretch(0, 20)  # Texture list gets 20% 
+        layout.setStretch(1, 80)  # Preview panel gets 80%
 
     def update_display(self):
         """Update the display with current TXD data"""
@@ -447,8 +450,8 @@ class TXDArchiveTab(QWidget):
         if hasattr(self.txd_parser, 'textures'):
             textures.extend(self.txd_parser.textures)
 
-        # Populate table with textures
-        self.texture_table.populate_textures(textures)
+        # Populate list with textures
+        self.texture_list.populate_textures(textures)
 
     def get_txd_info(self):
         """Get TXD information for display"""
@@ -486,11 +489,11 @@ class TXDArchiveTab(QWidget):
 
         for texture in native_textures:
             try:
-                # Size calculations
-                width = getattr(texture, 'width', 0)
-                height = getattr(texture, 'height', 0)
-                depth = getattr(texture, 'depth', 0)
-                num_levels = getattr(texture, 'num_levels', 1)
+                # Size calculations - use direct property access
+                width = texture.width if hasattr(texture, 'width') else 0
+                height = texture.height if hasattr(texture, 'height') else 0
+                depth = texture.depth if hasattr(texture, 'depth') else 0
+                num_levels = texture.num_levels if hasattr(texture, 'num_levels') else 1
                 
                 total_pixels += width * height
                 
@@ -505,10 +508,10 @@ class TXDArchiveTab(QWidget):
                 
                 total_memory += texture_memory
                 
-                # Format information
-                d3d_format = getattr(texture, 'd3d_format', 0)
-                raster_format = getattr(texture, 'raster_format_flags', 0)
-                platform_id = getattr(texture, 'platform_id', 0)
+                # Format information - use parser properties directly
+                d3d_format = texture.d3d_format if hasattr(texture, 'd3d_format') else 0
+                raster_format = texture.raster_format_flags if hasattr(texture, 'raster_format_flags') else 0
+                platform_id = texture.platform_id if hasattr(texture, 'platform_id') else 0
                 
                 if d3d_format:
                     formats_used.add(f"D3D:{d3d_format}")
@@ -517,14 +520,18 @@ class TXDArchiveTab(QWidget):
                     
                 platform_ids.add(platform_id)
                 
-                # Check for alpha
+                # Check for alpha using parser method
                 if hasattr(texture, 'has_alpha') and texture.has_alpha():
                     alpha_count += 1
                 
-                # Check compression
-                if hasattr(texture, 'raster_format_flags'):
-                    if texture.raster_format_flags & 0x80:  # DXT compression flag
+                # Check compression using parser enums
+                from application.common.txd import D3DFormat
+                try:
+                    if d3d_format and D3DFormat(d3d_format) in [D3DFormat.D3D_DXT1, D3DFormat.D3D_DXT2, 
+                                                                D3DFormat.D3D_DXT3, D3DFormat.D3D_DXT4, D3DFormat.D3D_DXT5]:
                         compression_types.add("DXT")
+                except ValueError:
+                    pass
                         
             except Exception as e:
                 debug_logger.warning(LogCategory.UI, f"Error analyzing texture: {e}")
@@ -532,17 +539,13 @@ class TXDArchiveTab(QWidget):
         # Platform information
         platform_info = "Unknown"
         if platform_ids:
+            from application.common.txd import DeviceType
             platform_names = []
             for pid in platform_ids:
-                if pid == 5:  # D3D8
-                    platform_names.append("D3D8")
-                elif pid == 8:  # D3D9  
-                    platform_names.append("D3D9")
-                elif pid == 6:  # PS2
-                    platform_names.append("PS2")
-                elif pid == 1:  # Xbox
-                    platform_names.append("Xbox")
-                else:
+                try:
+                    device_type = DeviceType(pid)
+                    platform_names.append(device_type.name.replace('DEVICE_', ''))
+                except ValueError:
                     platform_names.append(f"Unknown({pid})")
             platform_info = ", ".join(set(platform_names))
 
@@ -606,26 +609,20 @@ class TXDArchiveTab(QWidget):
             return "Error"
 
     def _format_device_id(self):
-        """Format device ID with descriptive name"""
+        """Format device ID with descriptive name using TXD parser enums"""
         try:
+            from application.common.txd import DeviceType
             device_id = getattr(self.txd_parser, 'device_id', None)
             
             if device_id is None:
                 return "Unknown"
-                
-            # Device ID mappings from TXD parser
-            device_names = {
-                0: "None/Auto",
-                1: "D3D8", 
-                2: "D3D9",
-                3: "GameCube",
-                6: "PS2",
-                8: "Xbox",
-                9: "PSP"
-            }
             
-            device_name = device_names.get(device_id, f"Unknown({device_id})")
-            return f"{device_id} ({device_name})"
+            try:
+                device_type = DeviceType(device_id)
+                device_name = device_type.name.replace('DEVICE_', '')
+                return f"{device_id} ({device_name})"
+            except ValueError:
+                return f"{device_id} (Unknown)"
             
         except Exception as e:
             debug_logger.warning(LogCategory.UI, f"Error formatting device ID: {e}")
@@ -668,8 +665,8 @@ class TXDFilterPanel(QWidget):
         layout.addWidget(self.filter_combo)
 
 
-class TXDTextureTable(QWidget):
-    """Table widget to display TXD textures"""
+class TXDTextureList(QWidget):
+    """Simple list widget to display TXD texture names"""
 
     texture_selected = pyqtSignal(object)
 
@@ -679,49 +676,77 @@ class TXDTextureTable(QWidget):
         self.setup_ui()
 
     def setup_ui(self):
-        """Setup texture table UI"""
+        """Setup texture list UI"""
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
 
-        self.table = QTableWidget()
-        self.table.setColumnCount(4)
-        self.table.setHorizontalHeaderLabels(["Name", "Width", "Height", "Format"])
+        # Simple label for the list
+        self.list_label = QLabel("Textures")
+        self.list_label.setStyleSheet(f"""
+            QLabel {{
+                font-weight: bold;
+                color: {ModernDarkTheme.TEXT_PRIMARY};
+                padding: 4px;
+                background-color: {ModernDarkTheme.BACKGROUND_SECONDARY};
+                border: 1px solid {ModernDarkTheme.BORDER_SECONDARY};
+                border-radius: 4px;
+            }}
+        """)
+        layout.addWidget(self.list_label)
 
-        # Configure table
-        header = self.table.horizontalHeader()
-        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+        # List widget for texture names
+        self.list_widget = QListWidget()
+        self.list_widget.setSelectionMode(QListWidget.SelectionMode.SingleSelection)
+        self.list_widget.currentRowChanged.connect(self._on_selection_changed)
+        
+        # Apply styling to match the suite theme
+        self.list_widget.setStyleSheet(f"""
+            QListWidget {{
+                background-color: {ModernDarkTheme.BACKGROUND_PRIMARY};
+                color: {ModernDarkTheme.TEXT_PRIMARY};
+                border: 1px solid {ModernDarkTheme.BORDER_PRIMARY};
+                border-radius: 4px;
+                selection-background-color: {ModernDarkTheme.TEXT_ACCENT};
+                alternate-background-color: {ModernDarkTheme.BACKGROUND_SECONDARY};
+            }}
+            QListWidget::item {{
+                padding: 6px 8px;
+                border-bottom: 1px solid {ModernDarkTheme.BORDER_SECONDARY};
+            }}
+            QListWidget::item:selected {{
+                background-color: {ModernDarkTheme.TEXT_ACCENT};
+                color: white;
+            }}
+            QListWidget::item:hover {{
+                background-color: {ModernDarkTheme.HOVER_COLOR};
+            }}
+        """)
 
-        self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        self.table.itemSelectionChanged.connect(self._on_selection_changed)
-
-        layout.addWidget(self.table)
+        layout.addWidget(self.list_widget)
 
     def populate_textures(self, textures):
-        """Populate table with texture data"""
+        """Populate list with texture data"""
         self.textures = textures
-        self.table.setRowCount(len(textures))
+        self.list_widget.clear()
 
-        for row, texture in enumerate(textures):
-            # Name
-            name = getattr(texture, 'name', f'Texture_{row}')
-            self.table.setItem(row, 0, QTableWidgetItem(name))
-
-            # Width
+        for i, texture in enumerate(textures):
+            # Get texture name
+            name = getattr(texture, 'name', f'Texture_{i}')
+            
+            # Create list item
+            item = QListWidgetItem(name)
+            item.setData(Qt.ItemDataRole.UserRole, texture)
+            
+            # Add tooltip with additional info
             width = getattr(texture, 'width', 0)
-            self.table.setItem(row, 1, QTableWidgetItem(str(width)))
-
-            # Height
             height = getattr(texture, 'height', 0)
-            self.table.setItem(row, 2, QTableWidgetItem(str(height)))
-
-            # Format
             format_info = self._get_format_info(texture)
-            self.table.setItem(row, 3, QTableWidgetItem(format_info))
+            item.setToolTip(f"Name: {name}\nSize: {width}x{height}\nFormat: {format_info}")
+            
+            self.list_widget.addItem(item)
 
-            # Store texture reference in first item
-            self.table.item(row, 0).setData(Qt.ItemDataRole.UserRole, texture)
+        # Update label with count
+        self.list_label.setText(f"Textures ({len(textures)})")
 
     def _get_format_info(self, texture):
         """Get format information for texture"""
@@ -732,17 +757,11 @@ class TXDTextureTable(QWidget):
         else:
             return "Unknown"
 
-    def _on_selection_changed(self):
+    def _on_selection_changed(self, current_row):
         """Handle selection changes"""
-        selected_items = self.table.selectedItems()
-        if selected_items:
-            # Get first item in selected row
-            row = selected_items[0].row()
-            first_item = self.table.item(row, 0)
-            if first_item:
-                texture = first_item.data(Qt.ItemDataRole.UserRole)
-                if texture:
-                    self.texture_selected.emit(texture)
+        if current_row >= 0 and current_row < len(self.textures):
+            texture = self.textures[current_row]
+            self.texture_selected.emit(texture)
 
 
 class TXDTexturePreview(QWidget):
@@ -757,17 +776,16 @@ class TXDTexturePreview(QWidget):
         """Setup preview UI"""
         layout = QVBoxLayout(self)
 
-        # Texture info
+        # Texture info - compact layout with side-by-side properties
         self.info_group = QGroupBox("Texture Information")
+        self.info_group.setMaximumHeight(180)  # Limit height to give more space to preview
         info_layout = QVBoxLayout(self.info_group)
 
-        # Basic info
+        # Create labels
         self.name_label = QLabel("Name: -")
         self.size_label = QLabel("Size: -")
         self.format_label = QLabel("Format: -")
         self.depth_label = QLabel("Depth: -")
-        
-        # Detailed info
         self.platform_label = QLabel("Platform: -")
         self.mipmaps_label = QLabel("Mip Levels: -")
         self.filter_label = QLabel("Filter Mode: -")
@@ -777,41 +795,50 @@ class TXDTexturePreview(QWidget):
         self.alpha_label = QLabel("Has Alpha: -")
         self.palette_label = QLabel("Palette: -")
         self.memory_label = QLabel("Memory Usage: -")
-        
-        # Mask info (if available)
         self.mask_label = QLabel("Mask: -")
 
-        info_layout.addWidget(self.name_label)
-        info_layout.addWidget(self.size_label)
-        info_layout.addWidget(self.format_label)
-        info_layout.addWidget(self.depth_label)
+        # Grid layout for compact display - 2 columns
+        grid_layout = QGridLayout()
+        grid_layout.setSpacing(4)  # Compact spacing
         
-        # Add separator
-        separator = QFrame()
-        separator.setFrameShape(QFrame.Shape.HLine)
-        separator.setFrameShadow(QFrame.Shadow.Sunken)
-        info_layout.addWidget(separator)
+        # Row 0: Basic info
+        grid_layout.addWidget(self.name_label, 0, 0)
+        grid_layout.addWidget(self.size_label, 0, 1)
         
-        info_layout.addWidget(self.platform_label)
-        info_layout.addWidget(self.mipmaps_label)
-        info_layout.addWidget(self.filter_label)
-        info_layout.addWidget(self.addressing_label)
-        info_layout.addWidget(self.raster_type_label)
-        info_layout.addWidget(self.compression_label)
-        info_layout.addWidget(self.alpha_label)
-        info_layout.addWidget(self.palette_label)
-        info_layout.addWidget(self.memory_label)
-        info_layout.addWidget(self.mask_label)
+        # Row 1: Format and depth
+        grid_layout.addWidget(self.format_label, 1, 0)
+        grid_layout.addWidget(self.depth_label, 1, 1)
+        
+        # Row 2: Platform and mipmaps
+        grid_layout.addWidget(self.platform_label, 2, 0)
+        grid_layout.addWidget(self.mipmaps_label, 2, 1)
+        
+        # Row 3: Filter and addressing
+        grid_layout.addWidget(self.filter_label, 3, 0)
+        grid_layout.addWidget(self.addressing_label, 3, 1)
+        
+        # Row 4: Raster type and compression
+        grid_layout.addWidget(self.raster_type_label, 4, 0)
+        grid_layout.addWidget(self.compression_label, 4, 1)
+        
+        # Row 5: Alpha and palette
+        grid_layout.addWidget(self.alpha_label, 5, 0)
+        grid_layout.addWidget(self.palette_label, 5, 1)
+        
+        # Row 6: Memory and mask
+        grid_layout.addWidget(self.memory_label, 6, 0)
+        grid_layout.addWidget(self.mask_label, 6, 1)
 
+        info_layout.addLayout(grid_layout)
         layout.addWidget(self.info_group)
 
-        # Image preview
+        # Image preview - takes up much more space now
         self.preview_group = QGroupBox("Preview")
         preview_layout = QVBoxLayout(self.preview_group)
 
         self.image_label = QLabel("No texture selected")
         self.image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.image_label.setMinimumHeight(200)
+        self.image_label.setMinimumHeight(400)  # Increased from 200 to 400
         self.image_label.setStyleSheet("border: 1px solid gray; background-color: #2b2b2b;")
 
         preview_layout.addWidget(self.image_label)
@@ -823,7 +850,10 @@ class TXDTexturePreview(QWidget):
         self.export_btn.setEnabled(False)
         layout.addWidget(self.export_btn)
 
-        layout.addStretch()
+        # Give much more space to the preview
+        layout.setStretch(0, 0)  # Info group - no stretch (fixed height)
+        layout.setStretch(1, 1)  # Preview group - takes all available space
+        layout.setStretch(2, 0)  # Export button - no stretch
 
     def show_texture(self, texture):
         """Show texture information and preview"""
@@ -833,17 +863,17 @@ class TXDTexturePreview(QWidget):
             self.clear_preview()
             return
 
-        # Update info labels with detailed information
-        name = getattr(texture, 'name', 'Unknown')
-        width = getattr(texture, 'width', 0)
-        height = getattr(texture, 'height', 0)
-        depth = getattr(texture, 'depth', 0)
-        platform_id = getattr(texture, 'platform_id', 0)
-        num_levels = getattr(texture, 'num_levels', 1)
-        filter_mode = getattr(texture, 'filter_mode', 0)
-        uv_addressing = getattr(texture, 'uv_addressing', 0)
-        raster_type = getattr(texture, 'raster_type', 0)
-        mask = getattr(texture, 'mask', '')
+        # Update info labels with detailed information - TXD parser guarantees these properties
+        name = texture.name
+        width = texture.width
+        height = texture.height
+        depth = texture.depth
+        platform_id = texture.platform_id
+        num_levels = texture.num_levels
+        filter_mode = texture.filter_mode
+        uv_addressing = texture.uv_addressing
+        raster_type = texture.raster_type
+        mask = texture.mask
 
         self.name_label.setText(f"Name: {name}")
         self.size_label.setText(f"Size: {width} x {height}")
@@ -856,7 +886,7 @@ class TXDTexturePreview(QWidget):
         
         # Mipmap info
         mipmap_info = f"{num_levels} level(s)"
-        if hasattr(texture, 'get_raster_has_mipmaps') and texture.get_raster_has_mipmaps():
+        if texture.get_raster_has_mipmaps():
             mipmap_info += " (Auto-generated)"
         self.mipmaps_label.setText(f"Mip Levels: {mipmap_info}")
         
@@ -881,20 +911,15 @@ class TXDTexturePreview(QWidget):
         self.compression_label.setText(f"Compression: {compression_info}")
         
         # Alpha info
-        has_alpha = "Unknown"
-        if hasattr(texture, 'has_alpha'):
-            has_alpha = "Yes" if texture.has_alpha() else "No"
+        has_alpha = "Yes" if texture.has_alpha() else "No"
         self.alpha_label.setText(f"Has Alpha: {has_alpha}")
         
         # Palette info
         palette_info = "None"
-        if hasattr(texture, 'palette') and texture.palette:
+        if texture.palette:
             palette_size = len(texture.palette)
-            if hasattr(texture, 'get_raster_palette_type'):
-                palette_type = texture.get_raster_palette_type()
-                palette_info = f"{palette_size} bytes (Type: {palette_type})"
-            else:
-                palette_info = f"{palette_size} bytes"
+            palette_type = texture.get_raster_palette_type()
+            palette_info = f"{palette_size} bytes (Type: {palette_type})"
         self.palette_label.setText(f"Palette: {palette_info}")
         
         # Memory usage estimation
@@ -930,49 +955,54 @@ class TXDTexturePreview(QWidget):
         self.export_btn.setEnabled(False)
 
     def _get_format_string(self, texture):
-        """Get readable format string"""
+        """Get readable format string using TXD parser enums"""
+        from application.common.txd import D3DFormat
+        
         format_parts = []
         
-        if hasattr(texture, 'd3d_format'):
-            d3d_format = texture.d3d_format
-            # D3D format names
-            d3d_names = {
-                21: "D3DFMT_R8G8B8A8", 22: "D3DFMT_R8G8B8", 23: "D3DFMT_R5G6B5",
-                24: "D3DFMT_X1R5G5B5", 25: "D3DFMT_A1R5G5B5", 26: "D3DFMT_A4R4G4B4",
-                50: "D3DFMT_L8", 51: "D3DFMT_A8L8", 827611204: "D3DFMT_DXT1",
-                844388420: "D3DFMT_DXT2", 861165636: "D3DFMT_DXT3",
-                877942852: "D3DFMT_DXT4", 894720068: "D3DFMT_DXT5"
-            }
-            format_name = d3d_names.get(d3d_format, f"D3D:{d3d_format}")
-            format_parts.append(format_name)
+        if hasattr(texture, 'd3d_format') and texture.d3d_format:
+            # Use the parser's D3DFormat enum names directly
+            try:
+                format_name = D3DFormat(texture.d3d_format).name
+                format_parts.append(format_name)
+            except ValueError:
+                # Fallback for unknown D3D formats
+                format_parts.append(f"D3D:{texture.d3d_format}")
             
-        if hasattr(texture, 'raster_format_flags'):
+        if hasattr(texture, 'raster_format_flags') and texture.raster_format_flags:
             raster_format = texture.raster_format_flags
-            if raster_format:
-                format_parts.append(f"Raster:0x{raster_format:X}")
+            format_parts.append(f"Raster:0x{raster_format:X}")
         
         return " | ".join(format_parts) if format_parts else "Unknown"
 
     def _get_platform_name(self, platform_id):
-        """Get platform name from ID"""
+        """Get platform name from ID using TXD parser enums"""
+        from application.common.txd import DeviceType
         platform_names = {
-            0: "None/Generic", 1: "Xbox", 2: "Unknown", 5: "D3D8", 
-            6: "PS2", 8: "D3D9", 9: "PSP"
+            DeviceType.DEVICE_NONE: "None/Generic",
+            DeviceType.DEVICE_D3D8: "D3D8", 
+            DeviceType.DEVICE_D3D9: "D3D9",
+            DeviceType.DEVICE_GC: "GameCube",
+            DeviceType.DEVICE_PS2: "PS2",
+            DeviceType.DEVICE_XBOX: "Xbox",
+            DeviceType.DEVICE_PSP: "PSP"
         }
         return platform_names.get(platform_id, f"Unknown ({platform_id})")
 
     def _get_compression_info(self, texture):
-        """Get compression information"""
-        if hasattr(texture, 'd3d_format'):
-            d3d_format = texture.d3d_format
-            if d3d_format in [827611204, 844388420, 861165636, 877942852, 894720068]:
-                compression_types = {
-                    827611204: "DXT1", 844388420: "DXT2", 861165636: "DXT3",
-                    877942852: "DXT4", 894720068: "DXT5"
-                }
-                return compression_types.get(d3d_format, "DXT")
+        """Get compression information using TXD parser enums"""
+        from application.common.txd import D3DFormat
         
-        if hasattr(texture, 'raster_format_flags'):
+        if hasattr(texture, 'd3d_format') and texture.d3d_format:
+            try:
+                d3d_format = D3DFormat(texture.d3d_format)
+                if d3d_format in [D3DFormat.D3D_DXT1, D3DFormat.D3D_DXT2, D3DFormat.D3D_DXT3, 
+                                 D3DFormat.D3D_DXT4, D3DFormat.D3D_DXT5]:
+                    return d3d_format.name
+            except ValueError:
+                pass
+        
+        if hasattr(texture, 'raster_format_flags') and texture.raster_format_flags:
             if texture.raster_format_flags & 0x80:  # DXT compression flag
                 return "DXT (Generic)"
         
@@ -981,10 +1011,10 @@ class TXDTexturePreview(QWidget):
     def _calculate_memory_usage(self, texture):
         """Calculate estimated memory usage"""
         try:
-            width = getattr(texture, 'width', 0)
-            height = getattr(texture, 'height', 0)
-            depth = getattr(texture, 'depth', 0)
-            num_levels = getattr(texture, 'num_levels', 1)
+            width = texture.width
+            height = texture.height
+            depth = texture.depth
+            num_levels = texture.num_levels
             
             if width == 0 or height == 0:
                 return "Unknown"
@@ -1011,18 +1041,20 @@ class TXDTexturePreview(QWidget):
     def _create_preview_image(self, texture):
         """Create and display preview image"""
         try:
-            # Try to get RGBA data from texture
-            if hasattr(texture, 'to_rgba'):
-                rgba_data = texture.to_rgba()
-                width = getattr(texture, 'width', 0)
-                height = getattr(texture, 'height', 0)
+            # Ensure texture is valid
+            if not texture:
+                self.image_label.setText("No texture available")
+                return
+                
+            # Try to get RGBA data from texture using TXD parser method
+            rgba_data = texture.to_rgba()
+            width = texture.width
+            height = texture.height
 
-                if rgba_data and width > 0 and height > 0:
-                    self._display_rgba_image(rgba_data, width, height)
-                else:
-                    self.image_label.setText("Cannot preview this texture format")
+            if rgba_data and width > 0 and height > 0:
+                self._display_rgba_image(rgba_data, width, height)
             else:
-                self.image_label.setText("Preview not available for this texture type")
+                self.image_label.setText("Cannot preview this texture format")
 
         except Exception as e:
             debug_logger.log_exception(LogCategory.UI, "Failed to create texture preview", e)
@@ -1085,25 +1117,26 @@ class TXDTexturePreview(QWidget):
     def _export_texture_to_file(self, file_path):
         """Export texture to file"""
         try:
-            if hasattr(self.current_texture, 'to_rgba'):
-                rgba_data = self.current_texture.to_rgba()
-                width = getattr(self.current_texture, 'width', 0)
-                height = getattr(self.current_texture, 'height', 0)
+            if not self.current_texture:
+                message_box.error("No texture selected for export", "Export Error", self)
+                return
+                
+            rgba_data = self.current_texture.to_rgba()
+            width = self.current_texture.width
+            height = self.current_texture.height
 
-                if rgba_data and width > 0 and height > 0:
-                    from PyQt6.QtGui import QImage
+            if rgba_data and width > 0 and height > 0:
+                from PyQt6.QtGui import QImage
 
-                    # Create QImage and save
-                    image = QImage(rgba_data, width, height, QImage.Format.Format_RGBA8888)
-                    
-                    if image.save(file_path):
-                        message_box.info(f"Texture exported successfully to:\n{file_path}", "Export Success", self)
-                    else:
-                        message_box.error("Failed to save image file", "Export Error", self)
+                # Create QImage and save
+                image = QImage(rgba_data, width, height, QImage.Format.Format_RGBA8888)
+                
+                if image.save(file_path):
+                    message_box.info(f"Texture exported successfully to:\n{file_path}", "Export Success", self)
                 else:
-                    message_box.error("Cannot export this texture format", "Export Error", self)
+                    message_box.error("Failed to save image file", "Export Error", self)
             else:
-                message_box.error("Texture export not supported for this type", "Export Error", self)
+                message_box.error("Cannot export this texture format", "Export Error", self)
 
         except Exception as e:
             debug_logger.log_exception(LogCategory.UI, "Failed to export texture to file", e)

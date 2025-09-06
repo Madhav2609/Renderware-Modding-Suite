@@ -16,8 +16,8 @@
 
 from struct import unpack_from, calcsize, pack
 
-from .dff import Chunk, RGBA, Sections, TexCoords, Triangle, Vector
-from .dff import ExtraVertColorExtension
+from .DFF import Chunk, RGBA, Sections, TexCoords, Triangle, Vector
+from .DFF import ExtraVertColorExtension
 from .txd import TextureNative, RasterFormat, PaletteType
 
 # geometry flags
