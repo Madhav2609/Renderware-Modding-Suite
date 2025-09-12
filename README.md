@@ -1,12 +1,13 @@
 # Renderware Modding Suite
 
-**A modern, modular, and extensible modding suite for the Grand Theft Auto 3D era games (GTA III, Vice City, San Andreas).**
+**A modern, modular, and extensible modding suite for the Grand Theft Auto 3D era games (GTA III, Vice City, San Andreas, Liberty City Stories, Vice City Stories).**
 
-This suite provides a powerful and user-friendly interface for modding Renderware-based games. It is built with a focus on modularity, allowing for the easy addition of new tools and features.
+This suite provides a powerful and user-friendly interface for modding RenderWare-based assets. It emphasizes clean architecture, responsive UI, centralized theming, and an extensible tool registry enabling rapid addition of new modding utilities.
 
 ## Table of Contents
 
 - [Features](#features)
+- [Tool Overview](#tool-overview)
 - [Architecture](#architecture)
 - [Technical Details](#technical-details)
   - [RenderWare Version Detection System](#renderware-version-detection-system)
@@ -18,6 +19,7 @@ This suite provides a powerful and user-friendly interface for modding Renderwar
   - [Running the Application](#running-the-application)
 - [Building from Source](#building-from-source)
 - [Development](#development)
+- [Roadmap](#roadmap)
 - [Contributing](#contributing)
 - [License](#license)
 
@@ -37,73 +39,56 @@ The Renderware Modding Suite is designed to be a comprehensive solution for modd
 - **Enhanced Filtering:** Advanced filtering capabilities by game version, file format, and RenderWare compatibility.
 - **Professional Architecture:** Clean separation of concerns with MVC pattern, making the codebase maintainable and extensible.
 
-### Included Tools
+## Tool Overview
 
-- **IMG Editor:** A comprehensive tool for managing `.img` archives with multi-archive tabbed interface and advanced RenderWare analysis.
-  - **Multi-Archive Support:** Open and manage multiple IMG archives simultaneously with dedicated tabs for each archive.
-  - **Archive Format Support:** Both Version 1 (GTA III/VC) and Version 2 (SA) IMG archives with full compatibility.
-  - **Advanced RenderWare Detection:**
-    - Automatic detection of DFF, TXD, and COL file formats with version identification
-    - Support for all GTA games (III, VC, SA, LCS, VCS) with specific version detection
-    - Enhanced filtering by game version, file format, and RenderWare compatibility
-    - Real-time RenderWare version analysis with detailed breakdowns
-    - COL file format detection (COL1, COL2, COL3, COL4)
-  - **Archive Operations:**
-    - Create new archives with version selection
-    - Open single or multiple archives simultaneously
-    - Import files, folders, or via IDE with preview functionality
-    - Extract selected entries or entire archives with organized output
-    - Delete entries with modification tracking and restore capabilities
-    - Export operations with type filtering and preview
-  - **Advanced Features:**
-    - Comprehensive search and filtering with multiple criteria
-    - Multi-selection operations for batch processing
-    - Modification tracking with detailed status reporting
-    - Progress indicators with cancellation support
-    - Archive validation and integrity checking
-  - **User Experience:**
-    - Tabbed interface for managing multiple archives
-    - Responsive table with sortable columns and alternating row colors
-    - Real-time filtering with search, type, and RenderWare version filters
-    - Context menus and keyboard shortcuts
-    - Comprehensive error handling with detailed feedback
+### Included Tools (Current)
 
-- **DFF Viewer:** A professional 3D model viewer with interactive inspection and advanced rendering capabilities.
-  - **3D Rendering Engine:** Built on Qt3D with hardware-accelerated rendering and professional lighting setup.
-  - **Model Support:**
-    - Native DFF (RenderWare 3D model) file support with full geometry parsing
-    - OBJ file support for standard 3D models
-    - Automatic model bounds detection and camera positioning
-  - **Interactive Navigation:**
-    - Blender-style camera controls with mouse and keyboard navigation
-    - Orbit, pan, and zoom operations with visual feedback
-    - Customizable camera positioning with distance, azimuth, and elevation controls
-    - Reset view and focus-on-bounds functionality
-  - **Advanced Features:**
-    - Interactive model inspector with geometry highlighting
-    - Three-point lighting system (key, fill, rim lights) for professional visualization
-    - Material override system for consistent model viewing
-    - Background color customization
-    - Real-time model reloading for development workflows
-  - **Rendering Features:**
-    - Hardware-accelerated rendering with proper vertex/normal/UV handling
-    - Support for RenderWare frame hierarchies and transformations
-    - Material color extraction from DFF files
-    - Axis gizmo for spatial reference
-  - **Integration:**
-    - Seamless integration with suite's responsive design system
-    - Debug logging integration for development and troubleshooting
-    - Tool action signals for communication with main application
+| Tool | Purpose | Key Capabilities |
+|------|---------|------------------|
+| IMG Editor | Manage GTA IMG archives | Multi-archive tabs, v1/v2 IMG formats, batch import/export, RW version scanning, COL detection |
+| TXD Editor | View & inspect texture dictionaries | Multi-TXD tabs, texture list & metadata, preview, info dialogs (editing WIP) |
+| DFF Viewer | Inspect 3D models | Qt3D rendering, camera navigation, axis gizmo, material/color extraction |
+| RW Analyze | Low-level RW chunk exploration | Recursive chunk tree, header info, version mapping, corruption detection |
+| IDE Editor | Edit item definition files | Schema-driven parsing, structured + raw view, collapsible sections, edit tracking |
+| Debug System | Unified logging & metrics | Categorized logs, timers, memory tracking, file session logs |
 
-- **Debug System:** Comprehensive logging and monitoring system for development and troubleshooting.
-  - **Multi-Level Logging:** Support for TRACE, DEBUG, INFO, WARNING, ERROR, and CRITICAL levels
-  - **Categorized Logging:** Organized by SYSTEM, UI, FILE_IO, TOOL, MEMORY, PERFORMANCE, USER_ACTION categories
-  - **Performance Monitoring:** Built-in performance timers for operation profiling
-  - **Memory Tracking:** Real-time memory usage monitoring and logging
-  - **File Logging:** Automatic log file generation with session tracking
-  - **Colored Terminal Output:** Enhanced readability with color-coded log levels
+### Highlighted Tool Details
 
-*(The application architecture supports easy addition of new tools. See `CODING_GUIDELINES.md` for tool development standards.)*
+**IMG Editor**
+- Multi-archive tab system (open many IMG simultaneously)
+- Version 1 & 2 support (III/VC vs SA) with automatic detection
+- RW-aware filtering: by file type (DFF/TXD/COL) and game version
+- Batch import (files/folders), export (selected/all), deletion & restoration tracking
+- Progress dialogs with cancellation
+- RenderWare version summary dashboard (counts by game & format)
+
+**TXD Editor**
+- Multiple TXDs opened in tabs
+- Texture table: name, platform flags, dimensions
+- Info dialog summarizing statistics
+- Planned: texture replacement/export/compression tooling (see Roadmap)
+
+**DFF Viewer**
+- Hardware-accelerated Qt3D rendering
+- Orbit / pan / zoom + reset & focus-on-bounds
+- Geometry + material extraction with axis gizmo
+
+**RW Analyze**
+- Generic chunk parser (DFF / TXD / COL / others)
+- Recursive tree with type, size, offset, decoded version & game
+- Corruption detection (size boundary checks) + performance timers
+
+**IDE Editor**
+- Schema-driven structured sections with collapsible panels
+- Raw view toggle for direct editing
+- Row add/delete, dirty-state tracking, planned validation improvements
+
+**Debug System**
+- TRACE→CRITICAL levels with category tagging (SYSTEM, UI, FILE_IO, TOOL, MEMORY, PERFORMANCE, USER_ACTION)
+- Performance timers + memory sampling integrated with status bar
+- Colored console + per-session log files in `logs/`
+
+*(Architecture supports rapid addition of new tools; see `CODING_GUIDELINES.md`.)*
 
 ## Architecture
 
@@ -113,14 +98,17 @@ The application follows a modern, modular architecture to ensure scalability and
 - **Theme System (`styles.py`):** Centralized theming with `ModernDarkTheme` class providing 30+ color constants and system palette override for consistent dark theme across all platforms.
 - **Responsive Design (`responsive_utils.py`):** Complete responsive design system with breakpoint detection, DPI awareness, font scaling, and adaptive component sizing for optimal experience across all screen sizes.
 - **Debug System (`debug_system.py`):** Professional logging system with categorized output, performance timers, memory tracking, and colored terminal output for comprehensive development and troubleshooting support.
-- **Tool Registry (`tool_registry.py`):** Centralized tool management system supporting dynamic tool registration, instantiation, and metadata management for seamless tool integration.
+- **Tool Registry (`tool_registry.py`):** Centralized tool management system supporting dynamic tool registration, instantiation, and metadata management (currently registers IMG Editor, TXD Editor, DFF Viewer, RW Analyze, IDE Editor).
 - **Content Area (`content_area.py`):** Advanced tabbed workspace with tool lifecycle management, cleanup handling, and seamless switching between different tool interfaces.
 - **File Explorer (`file_explorer.py`):** Integrated file browser with responsive design and file selection capabilities for easy navigation of game assets.
 - **Tools Panel (`tools_panel.py`):** Dynamic tools sidebar that adapts to available tools and provides quick access to all modding utilities.
 - **Status Bar (`status_bar.py`):** Comprehensive status display with memory usage monitoring, file information, and operation feedback.
-- **Modular Tools:** Each tool follows MVC architecture with separated concerns:
-  - **IMG Editor (`IMG_Editor/`):** Multi-archive management with tabbed interface, advanced filtering, and RenderWare analysis
-  - **DFF Viewer (`DFF_Viewer/`):** 3D model viewer with Qt3D rendering, interactive navigation, and professional lighting
+- **Modular Tools:** Each tool follows an MVC-inspired separation (UI + controller/logic where needed) and integrates with logging + responsive systems:
+  - IMG Editor (`tools/IMG_Editor/`)
+  - TXD Editor (`tools/TXD_Editor/`)
+  - DFF Viewer (`tools/DFF_Viewer/`)
+  - RW Analyze (`tools/RW_Analyze/`)
+  - IDE Editor (`tools/IDE_Editor/`)
 - **Common Utilities (`common/`):** Shared components including:
   - **DFF Parser (`DFF.py`):** Complete RenderWare DFF file format parser with geometry, material, and animation support
   - **RenderWare Versions (`rw_versions.py`):** Comprehensive version detection for all GTA games and file formats
@@ -339,51 +327,62 @@ Alternatively, you can use Nuitka manually for building:
 
 ### For Developers
 
-If you're planning to extend the application or create new tools, please refer to the comprehensive development documentation:
-
-- **`CODING_GUIDELINES.md`** - Complete coding standards, architecture patterns, and tool development guidelines
-- **`DEPLOYMENT_GUIDE.md`** - Deployment and distribution information
+See `CODING_GUIDELINES.md` for detailed architecture, style, and tool scaffolding guidance. This README focuses on high-level orientation.
 
 ### Key Development Resources
 
-- **Architecture Patterns:** MVC pattern with clear separation of UI, controllers, and business logic
-- **Theme System:** Centralized theming with `ModernDarkTheme` class
-- **Responsive Design:** `responsive_utils.py` for adaptive UI design
-- **Tool Development:** Standardized patterns for creating new modding tools
-- **Testing Guidelines:** Best practices for testing and debugging
+- Architecture & Patterns: `CODING_GUIDELINES.md`
+- Theme System: `styles.py` (`ModernDarkTheme`)
+- Responsive Design: `responsive_utils.py`
+- Tool Registry: `tools/tool_registry.py`
+- RW Versioning: `common/rw_versions.py`
+- DFF Parser: `common/DFF.py`
+- TXD Parser: `common/txd.py`
 
-### Current Tool Architecture
+### Current Tool Architecture (Abridged)
 
-The application currently includes two fully implemented tools:
-
-**IMG Editor Structure:**
 ```
 tools/IMG_Editor/
-├── __init__.py
-├── IMG_Editor.py              # Main UI with tabbed interface
-├── img_controller.py          # Business logic and archive management
-├── ui_interaction_handlers.py # UI event handlers
-├── progress_dialog.py         # Progress reporting
-└── core/                      # Archive processing utilities
-```
+├── IMG_Editor.py          # Main UI coordinator
+├── img_controller.py      # Archive logic
+├── ui_interaction_handlers.py
+├── img_editor_tool.py
+├── core/
+│   ├── Core.py
+│   ├── IMG_Operations.py
+│   ├── Import_Export.py
+│   └── File_Operations.py
 
-**DFF Viewer Structure:**
-```
+tools/TXD_Editor/
+├── TXD_Editor.py          # Multi-TXD interface
+├── core/
+│   ├── TXD_Operations.py
+│   └── File_Operations.py
+
+tools/RW_Analyze/
+├── RW_Analyze.py
+├── RW_Analyze_core.py
+
+tools/IDE_Editor/
+├── IDE_Editor.py
+├── IDE_core.py
+
 tools/DFF_Viewer/
-├── __init__.py
-├── DFF_Viewer.py             # 3D viewer with Qt3D integration
-└── (integrated controller)    # Business logic within main class
+├── DFF_Viewer.py
 ```
 
 ### Quick Start for New Tools
 
-1. Follow the established patterns from existing tools
-2. Use `get_responsive_manager()` for all sizing and spacing
-3. Use `ModernDarkTheme` constants for all colors
-4. Implement the MVC pattern with separated UI and controller
-5. Register your tool in `tool_registry.py`
-6. Use the debug system for logging and performance monitoring
-7. Follow the cleanup patterns for proper resource management
+1. Start minimal (look at `RW_Analyze`) or scaffold complexity (like `IMG_Editor`).
+2. Separate controller/business logic when operations grow (> single file UI).
+3. Use `get_responsive_manager()` for every size/font/spacing decision.
+4. Use only `ModernDarkTheme` constants. No hardcoded colors.
+5. Add signals for integration (`tool_action`, domain-specific events).
+6. Register in `tool_registry.py` with name, description, icon.
+7. Use `get_debug_logger()` with categories + performance timers.
+8. Provide `cleanup()` for long-lived resources.
+9. Test under varying DPI/scale factors (0.8–2.0) & resolutions.
+10. Document module header (purpose + interactions).
 
 ## Contributing
 
@@ -402,6 +401,7 @@ Please review the development documentation:
 3. **Implement Responsive Design:** Use `responsive_utils.py` for all sizing and spacing
 4. **Write Clean Code:** Follow the coding standards in the guidelines document
 5. **Test Thoroughly:** Ensure your changes work across different screen sizes and DPI settings
+6. **Update Docs:** If you add a capability or tool, update README + guidelines
 
 ### Types of Contributions
 
@@ -410,6 +410,27 @@ Please review the development documentation:
 - **UI Improvements:** Enhance the user interface and experience
 - **Performance Optimizations:** Improve application performance and memory usage
 - **Documentation:** Improve or expand documentation and examples
+
+## Roadmap
+
+Short-term (Active):
+- TXD texture export & replacement workflow
+- IDE Editor validation rules & auto-fix suggestions
+- RW Analyze: hex pane + export selected chunk
+- IMG Editor: async background indexing & parsing improvements
+
+Mid-term:
+- Batch DFF statistics / optimization tool
+- COL viewer & editor integration
+- Plugin / script API for external extensions
+- Texture compression analysis & conversion helpers
+
+Long-term / Exploration:
+- Cross-platform binary packaging (Linux/macOS artifacts)
+- 3D material/texture binding in DFF Viewer
+- In-app update checker
+
+Have an idea? Open an issue and label it enhancement.
 
 ## License
 

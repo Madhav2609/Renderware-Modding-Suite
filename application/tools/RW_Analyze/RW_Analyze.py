@@ -47,7 +47,10 @@ from application.styles import ModernDarkTheme
 
 # RW helpers
 from application.tools.RW_Analyze import RW_Analyze_core as core
-from application.common import rw_versions
+from application.common.rw_versions import RWVersionManager
+
+# Initialize RW Version Manager
+rw_version_manager = RWVersionManager()
 
 
 @dataclass
@@ -68,7 +71,11 @@ class ChunkHeader:
     def version_name(self) -> str:
         """Return the friendly name for the RW version."""
         try:
-            return rw_versions.get_rw_version_name(self.version)
+            version_info = rw_version_manager.get_version_info(self.version)
+            if version_info.get('game_info'):
+                game = version_info['game_info']['display_name']
+                return f"{version_info['version_string']} ({game})"
+            return version_info['version_string']
         except Exception:
             return f"0x{self.version:X}"
 
@@ -231,9 +238,21 @@ class RWAnalyzeTool(QWidget):
             self.debug.end_performance_timer(timer_id)
             return
 
-        fmt, fmt_str, ver = rw_versions.detect_rw_file_format(data, self.current_path or "")
+        fmt, fmt_str, ver = rw_version_manager.detect_file_format_version(data, self.current_path or "")
         root_title = f"{os.path.basename(self.current_path or 'File')} ({fmt_str})"
-        root = QTreeWidgetItem([root_title, str(filesize), rw_versions.get_rw_version_name(ver), "0x0"])
+        
+        # Get version name using new system
+        if ver > 0:
+            version_info = rw_version_manager.get_version_info(ver)
+            if version_info.get('game_info'):
+                game = version_info['game_info']['display_name']
+                version_display = f"{version_info['version_string']} ({game})"
+            else:
+                version_display = version_info['version_string']
+        else:
+            version_display = "Unknown"
+            
+        root = QTreeWidgetItem([root_title, str(filesize), version_display, "0x0"])
         root.setData(0, Qt.ItemDataRole.UserRole, {"kind": "root"})
         self.tree.addTopLevelItem(root)
 

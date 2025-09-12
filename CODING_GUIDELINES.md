@@ -10,6 +10,11 @@
 - [Best Practices](#best-practices)
 - [Common Patterns](#common-patterns)
 - [Testing & Debugging](#testing--debugging)
+- [Logging & Categories](#logging--categories)
+- [Performance & Memory Guidelines](#performance--memory-guidelines)
+- [Type Hints & Static Clarity](#type-hints--static-clarity)
+- [Commit Message Convention](#commit-message-convention)
+- [Documentation Update Policy](#documentation-update-policy)
 
 ## Architecture Overview
 
@@ -38,9 +43,18 @@ application/
     │   ├── ui_interaction_handlers.py # Event handlers
     │   ├── progress_dialog.py # Progress reporting
     │   └── core/              # Archive processing utilities
-    └── DFF_Viewer/            # 3D model viewer with Qt3D
-        ├── __init__.py
-        └── DFF_Viewer.py      # 3D viewer with integrated controller
+    ├── DFF_Viewer/            # 3D model viewer with Qt3D
+    │   ├── __init__.py
+    │   └── DFF_Viewer.py      # 3D viewer with integrated controller
+    ├── TXD_Editor/            # TXD texture dictionary inspector/editor (WIP editing)
+    │   ├── TXD_Editor.py
+    │   └── core/
+    ├── RW_Analyze/            # Generic RenderWare chunk analyzer
+    │   ├── RW_Analyze.py
+    │   └── RW_Analyze_core.py
+    └── IDE_Editor/            # Item Definition file structured editor
+        ├── IDE_Editor.py
+        └── IDE_core.py
 ```
 
 ### Core Principles
@@ -48,7 +62,7 @@ application/
 2. **Responsive Design**: All UI elements adapt to different screen sizes with breakpoint system
 3. **Centralized Theming**: All colors and styles come from the theme system (30+ constants)
 4. **Modular Tools**: Each tool is self-contained with proper lifecycle management
-5. **Debug Integration**: Comprehensive logging with categories and performance monitoring
+5. **Debug Integration**: Comprehensive logging with categories and performance monitoring (see Logging section)
 6. **Memory Management**: Proper resource cleanup and memory tracking
 7. **Professional Architecture**: Production-ready code with error handling and user feedback
 
@@ -205,9 +219,12 @@ elif rm.breakpoint == "large":
 ## Tool Development
 
 ### Current Tool Examples
-Study the existing tools for reference:
-- **IMG_Editor**: Multi-archive management with tabbed interface, filtering, and RenderWare analysis
-- **DFF_Viewer**: 3D model viewer with Qt3D rendering and interactive navigation
+Study existing tools for pattern breadth:
+- **IMG_Editor**: Complex, multi-file architecture, controllers + core layer
+- **TXD_Editor**: Medium complexity, multi-tab pattern
+- **RW_Analyze**: Lean single-file UI + core constants module
+- **IDE_Editor**: Structured + raw dual-mode editing, schema-driven
+- **DFF_Viewer**: 3D rendering integration pattern
 
 ### 1. Tool Structure Template
 Every tool should follow this structure:
@@ -243,6 +260,8 @@ class YourTool(QWidget):
         self.controller = YourController()
         self.setup_ui()
         self.setup_connections()
+
+    # Use categorized logging always
         
         self.debug_logger.info(LogCategory.TOOL, f"Initialized {self.__class__.__name__}")
     
@@ -717,3 +736,99 @@ When creating a new tool, ensure you have:
 ---
 
 **Remember**: Consistency is key! Following these guidelines ensures your tools integrate seamlessly with the existing application architecture and provide a professional, cohesive user experience.
+
+## Logging & Categories
+
+Always use the unified debug system (`get_debug_logger()`). Avoid `print` outside of rapid prototyping.
+
+Categories (enum `LogCategory`):
+- SYSTEM – high-level app lifecycle
+- UI – widget/layout/state changes
+- FILE_IO – read/write/import/export operations
+- TOOL – tool-specific domain events
+- MEMORY – memory usage & pressure warnings
+- PERFORMANCE – timing blocks & metrics
+- USER_ACTION – explicit user-triggered events (buttons, menu, etc.)
+
+Levels follow TRACE, DEBUG, INFO, WARNING, ERROR, CRITICAL.
+
+Pattern:
+```python
+log = get_debug_logger()
+timer = log.start_performance_timer("Parse Archive")
+try:
+    # do work
+    log.info(LogCategory.TOOL, "Archive parsed", {"entries": len(entries)})
+except Exception as e:
+    log.log_exception(LogCategory.FILE_IO, "Archive parse failed", e)
+finally:
+    log.end_performance_timer(timer)
+```
+
+## Performance & Memory Guidelines
+
+1. Parse large binary assets in streaming fashion where feasible (chunking 8–64KB).
+2. Emit progress for operations surpassing 300ms with cancellable dialogs.
+3. Use performance timers for any operation likely > 100ms in hot paths.
+4. Avoid retaining large byte arrays after parsing—store structured metadata.
+5. For tables with thousands of rows, prefer lazy population or batching.
+6. Log memory usage for tools doing heavy loads; warn at configurable thresholds (default: 500 MB).
+7. Offload CPU-heavy tasks to worker threads (future optimization hook) – keep UI responsive.
+
+## Type Hints & Static Clarity
+
+While retrofitting full type coverage is optional, new modules SHOULD:
+- Type annotate function signatures and dataclasses.
+- Use `Optional[...]` for nullable returns.
+- Prefer `Path` over raw strings for filesystem paths when practical.
+- Provide protocol-style docstrings for complex return shapes.
+
+Examples:
+```python
+def load_txd(path: Path) -> tuple[bool, list[str]]:
+    ...
+```
+
+## Commit Message Convention
+
+Format:
+```
+<type>(<scope>): <short imperative summary>
+
+<optional body>
+```
+
+Types:
+- feat – new user-visible feature/tool capability
+- fix – bug fix
+- perf – performance improvement
+- refactor – structural/non-behavioral code change
+- docs – documentation only
+- style – formatting / naming / lint corrections
+- chore – build scripts, dependencies, non-code content
+- test – adding or adjusting tests
+
+Examples:
+```
+feat(img): add batch delete restore tracking
+perf(rw_analyze): reduce recursion allocations
+docs(readme): add TXD Editor section
+```
+
+## Documentation Update Policy
+
+Any change that:
+- Adds/removes a tool
+- Alters tool primary capabilities (import/export options, major UI change)
+- Introduces new logging categories or performance tracking patterns
+- Modifies build or packaging workflow
+
+REQUIRES updates to:
+- `Readme.md` (high-level feature/tool overview)
+- `CODING_GUIDELINES.md` (patterns or conventions)
+
+Add a short note in PR body: `Docs: updated README + guidelines`.
+
+---
+
+By following these extended guidelines you ensure maintainability, clarity, and a predictable developer experience as the suite grows.

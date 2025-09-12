@@ -1,0 +1,198 @@
+{
+  "platform_info": {
+    "PC": ["D3D8", "D3D9"],
+    "PS2": ["PS2"],
+    "XBOX": ["XBOX"],
+    "MOBILE": ["AMD", "POWERVR", "UNCOMPRESSED", "S3TC"],
+    "PSP": ["PSP"],
+    "GAMECUBE": ["GAMECUBE"]
+  },
+  "version_sets": [
+    {
+      "name": "GTA San Andreas",
+      "display_name": "San Andreas",
+      "icon_name": "sa",
+      "platforms": [
+        {
+          "platform": "PC",
+          "rw_version": "3.6.0.3",
+          "rw_version_min": "3.5.0.0",
+          "rw_version_max": "3.6.0.3",
+          "data_types": ["D3D9"]
+        },
+        {
+          "platform": "XBOX",
+          "rw_version": "3.6.0.3",
+          "rw_version_min": "3.6.0.0",
+          "rw_version_max": "3.6.0.3",
+          "data_types": ["XBOX"]
+        },
+        {
+          "platform": "PS2",
+          "rw_version": "3.6.0.3",
+          "rw_version_min": "3.5.0.0",
+          "rw_version_max": "3.6.0.3",
+          "data_types": ["PS2"]
+        }
+      ]
+    },
+    {
+      "name": "GTA Vice City",
+      "display_name": "Vice City",
+      "icon_name": "vc",
+      "platforms": [
+        {
+          "platform": "PC",
+          "rw_version": "3.4.0.3",
+          "rw_version_min": "3.4.0.0",
+          "rw_version_max": "3.4.0.3",
+          "data_types": ["D3D8"]
+        },
+        {
+          "platform": "PS2",
+          "rw_version": "3.3.0.2",
+          "rw_version_min": "3.3.0.0",
+          "rw_version_max": "3.3.0.2",
+          "data_types": ["PS2"]
+        },
+        {
+          "platform": "XBOX",
+          "rw_version": "3.5.0.0",
+          "data_types": ["XBOX"]
+        }
+      ]
+    },
+    {
+      "name": "GTA 3",
+      "display_name": "GTA 3",
+      "icon_name": "gta3",
+      "platforms": [
+        {
+          "platform": "PC",
+          "rw_version": "3.1.0.1",
+          "rw_version_min": "3.0.0.0",
+          "rw_version_max": "3.3.15.63",
+          "data_types": ["D3D8"]
+        },
+        {
+          "platform": "XBOX",
+          "rw_version": "3.5.0.0",
+          "rw_version_min": "3.5.0.0",
+          "rw_version_max": "3.5.15.63",
+          "data_types": ["XBOX"]
+        },
+        {
+          "platform": "PS2",
+          "rw_version": "3.1.0.0",
+          "rw_version_min": "3.0.0.0",
+          "rw_version_max": "3.2.15.63",
+          "data_types": ["PS2"]
+        },
+        {
+          "platform": "MOBILE",
+          "rw_version": "3.4.0.3",
+          "rw_version_min": "3.0.0.0",
+          "rw_version_max": "3.4.0.3",
+          "data_types": ["AMD", "POWERVR", "UNCOMPRESSED", "S3TC"]
+        }
+      ]
+    },
+    {
+      "name": "Manhunt",
+      "display_name": "Manhunt",
+      "icon_name": "mh",
+      "platforms": [
+        {
+          "platform": "PC",
+          "rw_version": "3.6.0.3",
+          "rw_version_min": "3.5.0.0",
+          "rw_version_max": "3.6.0.3",
+          "data_types": ["D3D8"]
+        },
+        {
+          "platform": "PS2",
+          "rw_version": "3.4.0.5",
+          "rw_version_min": "3.4.0.0",
+          "rw_version_max": "3.4.0.5",
+          "data_types": ["PS2"]
+        }
+      ]
+    },
+    {
+      "name": "Bully",
+      "display_name": "Bully",
+      "icon_name": "bully",
+      "platforms": [
+        {
+          "platform": "PS2",
+          "rw_version": "3.7.0.2",
+          "rw_build": 10,
+          "rw_version_min": "3.7.0.0",
+          "rw_version_max": "3.7.15.63",
+          "data_types": ["PS2"]
+        }
+      ]
+    },
+    {
+      "name": "Liberty City Stories",
+      "display_name": "Liberty City Stories",
+      "icon_name": "lcs",
+      "platforms": [
+        {
+          "platform": "PSP",
+          "rw_version": "3.1.0.0",
+          "rw_version_min": "3.0.0.0",
+          "rw_version_max": "3.1.0.0",
+          "data_types": ["PSP"]
+        }
+      ]
+    },
+    {
+      "name": "RenderWare 3.7.0.2 PC SDK",
+      "platforms": [
+        {
+          "platform": "PC",
+          "rw_version": "3.7.0.2",
+          "data_types": ["D3D8", "D3D9"]
+        }
+      ]
+    },
+    {
+      "name": "RenderWare 3.5.0.0 PS2 SDK",
+      "platforms": [
+        {
+          "platform": "PS2",
+          "rw_version": "3.5.0.0",
+          "data_types": ["PS2"]
+        }
+      ]
+    },
+    {
+      "name": "Sonic Heroes",
+      "display_name": "Sonic Heroes",
+      "platforms": [
+        {
+          "platform": "GAMECUBE",
+          "rw_version": "3.5.0.0",
+          "rw_version_min": "3.5.0.0",
+          "rw_version_max": "3.6.15.63",
+          "data_types": ["GAMECUBE"]
+        },
+        {
+          "platform": "PC",
+          "rw_version": "3.5.0.0",
+          "rw_version_min": "3.5.0.0",
+          "rw_version_max": "3.6.15.63",
+          "data_types": ["D3D8"]
+        },
+        {
+          "platform": "PS2",
+          "rw_version": "3.5.0.0",
+          "rw_version_min": "3.5.0.0",
+          "rw_version_max": "3.6.15.63",
+          "data_types": ["PS2"]
+        }
+      ]
+    }
+  ]
+}

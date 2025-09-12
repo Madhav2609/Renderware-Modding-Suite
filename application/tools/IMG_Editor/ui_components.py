@@ -384,53 +384,26 @@ class IMGEntriesTable(QTableWidget, DragDropMixin):
             # Get the entry object to check RenderWare properties
             entry = name_item.data(Qt.ItemDataRole.UserRole) if name_item else None
 
+            if not entry:
+                continue
+
             # Text filter
             if filter_text and filter_text.lower() not in name_item.text().lower():
                 show_row = False
 
-            # File type filter
-            if filter_type and filter_type != "All" and type_item.text() != filter_type:
-                show_row = False
+            # File type filter - use entry.type property
+            if filter_type and filter_type != "All":
+                if entry.type != filter_type:
+                    show_row = False
 
             # RenderWare version filter
-            if filter_rw_version and entry:
-                rw_text = rw_version_item.text() if rw_version_item else ""
-
+            if filter_rw_version and filter_rw_version != "All Versions":
                 if filter_rw_version == "RenderWare Only":
                     if not entry.is_renderware_file():
                         show_row = False
-                elif filter_rw_version == "Non-RenderWare":
-                    if entry.is_renderware_file():
-                        show_row = False
-                elif filter_rw_version == "GTA III (3.1.0.1)":
-                    if not ("3.1.0.1" in rw_text or "GTA3" in rw_text):
-                        show_row = False
-                elif filter_rw_version == "Vice City (3.3.0.2)":
-                    if not ("3.3.0.2" in rw_text or "Vice City" in rw_text):
-                        show_row = False
-                elif filter_rw_version == "San Andreas (3.6.0.3)":
-                    if not ("3.6.0.3" in rw_text):
-                        show_row = False
-                elif filter_rw_version == "San Andreas (3.4.0.3)":
-                    if not ("3.4.0.3" in rw_text):
-                        show_row = False
-                elif filter_rw_version == "Liberty City Stories (3.5.0.0)":
-                    if not ("3.5.0.0" in rw_text or "Liberty City Stories" in rw_text):
-                        show_row = False
-                elif filter_rw_version == "Vice City Stories (3.5.0.2)":
-                    if not ("3.5.0.2" in rw_text or "Vice City Stories" in rw_text):
-                        show_row = False
-                elif filter_rw_version == "COL1 (GTA III/VC)":
-                    if not ("COL1" in rw_text):
-                        show_row = False
-                elif filter_rw_version == "COL2 (GTA SA)":
-                    if not ("COL2" in rw_text):
-                        show_row = False
-                elif filter_rw_version == "COL3 (GTA SA Advanced)":
-                    if not ("COL3" in rw_text):
-                        show_row = False
-                elif filter_rw_version == "COL4 (Extended)":
-                    if not ("COL4" in rw_text):
+                else:
+                    # For specific version names, check the entry's rw_version_name
+                    if entry.rw_version_name != filter_rw_version:
                         show_row = False
 
             self.setRowHidden(row, not show_row)
@@ -706,7 +679,7 @@ class FilterPanel(QWidget):
         rw_layout = QHBoxLayout(rw_group)
 
         self.rw_version_combo = QComboBox()
-        self.rw_version_combo.addItems(['All Versions', 'RenderWare Only', 'Non-RenderWare', 'GTA III (3.1.0.1)', 'Vice City (3.3.0.2)', 'San Andreas (3.6.0.3)', 'San Andreas (3.4.0.3)', 'Liberty City Stories (3.5.0.0)', 'Vice City Stories (3.5.0.2)', 'COL1 (GTA III/VC)', 'COL2 (GTA SA)', 'COL3 (GTA SA Advanced)', 'COL4 (Extended)'])
+
         self.rw_version_combo.currentTextChanged.connect(self._filter_changed)
         rw_layout.addWidget(self.rw_version_combo)
 
@@ -772,6 +745,71 @@ class FilterPanel(QWidget):
         filter_type = self.type_combo.currentText() if self.type_combo.currentText() != "All" else None
         filter_rw_version = self.rw_version_combo.currentText() if self.rw_version_combo.currentText() != "All Versions" else None
         self.filter_changed.emit(filter_text, filter_type, filter_rw_version)
+
+    def update_file_type_options(self, file_types):
+        """Update file type filter options based on available types in the archive"""
+        current_selection = self.type_combo.currentText()
+        
+        # Clear and add 'All' first
+        self.type_combo.clear()
+        self.type_combo.addItem('All')
+        
+        # Add only the file types that are actually present
+        for file_type in sorted(file_types):
+            if file_type:  # Skip empty types
+                self.type_combo.addItem(file_type)
+        
+        # Try to restore previous selection if it still exists
+        index = self.type_combo.findText(current_selection)
+        if index >= 0:
+            self.type_combo.setCurrentIndex(index)
+        else:
+            self.type_combo.setCurrentIndex(0)  # Default to 'All'
+
+    def update_rw_version_options(self, rw_versions):
+        """Update RenderWare version filter options based on available versions in the archive"""
+        current_selection = self.rw_version_combo.currentText()
+        
+        # Clear and add standard options first
+        self.rw_version_combo.clear()
+        self.rw_version_combo.addItem('All Versions')
+        self.rw_version_combo.addItem('RenderWare Only')
+    
+        
+        # Add only the versions that are actually present 
+        for version_value, version_name in rw_versions:
+            if version_name and version_name not in ['All Versions', 'RenderWare Only']:
+                self.rw_version_combo.addItem(version_name)
+        
+        # Try to restore previous selection if it still exists
+        index = self.rw_version_combo.findText(current_selection)
+        if index >= 0:
+            self.rw_version_combo.setCurrentIndex(index)
+        else:
+            self.rw_version_combo.setCurrentIndex(0)  # Default to 'All Versions'
+
+    def update_filter_options(self, img_archive):
+        """Update both file type and RW version options based on the archive content"""
+        if img_archive and hasattr(img_archive, 'entries'):
+            # Get unique file types and RW versions from the archive
+            file_types = img_archive.get_unique_file_types()
+            rw_versions = img_archive.get_unique_rw_versions()
+            
+            # Update the comboboxes
+            self.update_file_type_options(file_types)
+            self.update_rw_version_options(rw_versions)
+        else:
+            # Reset to default options if no archive
+            self.reset_filter_options()
+
+    def reset_filter_options(self):
+        """Reset filter options to default (empty archive state)"""
+        self.type_combo.clear()
+        self.type_combo.addItem('All')
+        
+        self.rw_version_combo.clear()
+        self.rw_version_combo.addItem('All Versions')
+        self.rw_version_combo.addItem('RenderWare Only')
 
 
 __all__ = [

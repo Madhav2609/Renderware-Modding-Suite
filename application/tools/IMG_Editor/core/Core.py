@@ -19,11 +19,14 @@ app_root = Path(__file__).parent.parent.parent.parent
 if str(app_root) not in sys.path:
     sys.path.insert(0, str(app_root))
 
-from application.common.rw_versions import parse_rw_version, get_model_format_version, is_valid_rw_version, detect_rw_file_format
+from application.common.rw_versions import RWVersionManager
 from application.debug_system import get_debug_logger, LogCategory
 
 # Module-level debug logger
 debug_logger = get_debug_logger()
+
+# Initialize RW Version Manager
+rw_version_manager = RWVersionManager()
 
 # Constants
 SECTOR_SIZE = 2048
@@ -95,36 +98,56 @@ class IMGEntry:
             return
         
         try:
-            # Use the enhanced detection from rw_versions
-            file_format, version_description, version_value = detect_rw_file_format(data, self.name)
+            # Use the enhanced detection from rw_version_manager
+            file_format, version_description, version_value = rw_version_manager.detect_file_format_version(data, self.name)
             
             if file_format == "COL":
                 # COL files don't have RW versions in the traditional sense
                 self._rw_version = None
                 self._rw_version_name = version_description
                 self._format_info = (file_format, version_description)
-            elif version_value > 0 and is_valid_rw_version(version_value):
+            elif version_value > 0 and rw_version_manager.is_valid_rw_version(version_value):
                 self._rw_version = version_value
-                self._rw_version_name = version_description
-                self._format_info = (file_format, version_description)
+                # Use the enhanced display string with platform information
+                self._rw_version_name = rw_version_manager.get_version_display_string(version_value)
+                self._format_info = (file_format, self._rw_version_name)
             else:
                 # Fall back to original method for other file types
                 if len(data) >= 12:
                     # Check if it's a RenderWare file by looking at the version field
                     version_data = data[8:12]
-                    version_value, version_name = parse_rw_version(version_data)
                     
-                    if is_valid_rw_version(version_value):
-                        self._rw_version = version_value
-                        self._rw_version_name = version_name
-                        
-                        # Get format-specific information
-                        format_type, format_version = get_model_format_version(self.name, data)
-                        self._format_info = (format_type, format_version)
+                    if len(version_data) >= 4:
+                        import struct
+                        try:
+                            library_id = struct.unpack('<I', version_data)[0]
+                            # Extract actual RW version using DFF function
+                            rw_version = rw_version_manager.get_rw_version(library_id)
+                            
+                            if rw_version_manager.is_valid_rw_version(rw_version):
+                                self._rw_version = rw_version
+                                # Use the enhanced display string with platform information
+                                self._rw_version_name = rw_version_manager.get_version_display_string(rw_version)
+                                
+                                # Get format-specific information
+                                ext = self.name.lower().split('.')[-1] if '.' in self.name else ""
+                                if ext in ['dff', 'txd']:
+                                    self._format_info = (ext.upper(), self._rw_version_name)
+                                else:
+                                    self._format_info = ("RW", self._rw_version_name)
+                            else:
+                                # Not a valid RenderWare file
+                                self._rw_version = None
+                                self._rw_version_name = "Not RenderWare"
+                                self._format_info = (self.type, "Not RenderWare")
+                        except (struct.error, Exception):
+                            self._rw_version = None
+                            self._rw_version_name = "Invalid"
+                            self._format_info = (self.type, "Invalid")
                     else:
-                        # Not a valid RenderWare file
                         self._rw_version = None
-                        self._rw_version_name = "Not RenderWare"
+                        self._rw_version_name = "Invalid"
+                        self._format_info = (self.type, "Invalid")
                         self._format_info = (self.type, "Non-RW")
                 else:
                     self._rw_version = None
@@ -141,7 +164,7 @@ class IMGEntry:
         # COL files are RenderWare-related but don't have traditional RW versions
         if self._format_info and self._format_info[0] == "COL":
             return "COL" in self._rw_version_name if self._rw_version_name else False
-        return self._rw_version is not None and is_valid_rw_version(self._rw_version)
+        return self._rw_version is not None and rw_version_manager.is_valid_rw_version(self._rw_version)
     
     def get_detailed_info(self) -> str:
         """Get detailed information string about this entry."""
@@ -355,6 +378,50 @@ class IMGArchive:
         return [entry for entry in self.entries 
                 if entry.type == format_type]
     
+    def get_unique_file_types(self):
+        """
+        Get all unique file types present in the archive.
+        
+        Returns:
+            List of unique file type strings
+        """
+        types = set()
+        for entry in self.entries:
+            if entry.type:
+                types.add(entry.type)
+        return sorted(list(types))
+    
+    def get_unique_rw_versions(self):
+        """
+        Get all unique RenderWare versions present in the archive.
+        
+        Returns:
+            List of tuples (version_value, version_name) for unique versions
+        """
+        versions = {}
+        for entry in self.entries:
+            # Include all version names, including non-RenderWare ones
+            if entry.rw_version_name:
+                # Use rw_version as key, fallback to hash of name if None
+                key = entry.rw_version if entry.rw_version is not None else hash(entry.rw_version_name)
+                versions[key] = entry.rw_version_name
+        return [(version, name) for version, name in sorted(versions.items(), key=lambda x: x[1])]
+    
+    def get_unique_formats(self):
+        """
+        Get all unique format types present in the archive.
+        
+        Returns:
+            List of unique format type strings (e.g., 'DFF', 'TXD', 'COL')
+        """
+        formats = set()
+        for entry in self.entries:
+            if entry.format_info and len(entry.format_info) > 0:
+                format_type = entry.format_info[0]
+                if format_type:
+                    formats.add(format_type)
+        return sorted(list(formats))
+
     def filter_entries(self, filter_text=None, filter_type=None):
         """
         Filters entries in an IMG archive based on name and/or type.

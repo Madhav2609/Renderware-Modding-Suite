@@ -77,6 +77,9 @@ class IMGArchiveTab(QWidget):
         file_path = self.parent_tool.img_controller.get_archive_file_path(self.img_archive)
         entries = self.parent_tool.img_controller.get_archive_entries(file_path)
 
+        # Update filter options based on the archive content
+        self.filter_panel.update_filter_options(self.img_archive)
+
         # Populate table with entries
         if entries:
             self.entries_table.populate_entries(entries)

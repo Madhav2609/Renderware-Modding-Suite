@@ -103,6 +103,14 @@ def build_executable_comprehensive():
     else:
         print(f"[WARNING] schema.json not found at: {schema_file}. IDE Editor may not work in the build.")
 
+    # Ensure versionsets.json for RW version manager is bundled
+    versionsets_file = project_root / "application" / "common" / "versionsets.json"
+    if versionsets_file.exists():
+        # Keep relative path so rw_versions.py (Path(__file__).parent) works
+        nuitka_cmd.insert(-1, f"--include-data-file={versionsets_file}=application/common/versionsets.json")
+    else:
+        print(f"[WARNING] versionsets.json not found at: {versionsets_file}. Version mapping features may be degraded.")
+
     print("Running Nuitka command...")
     print(f"Command: {' '.join(nuitka_cmd)}")
     
